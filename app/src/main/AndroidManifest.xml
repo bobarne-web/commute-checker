@@ -79,10 +79,25 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
+        <!-- Android Auto CarAppService -->
+        <service
+            android:name=".auto.CommuteCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.POI" />
+            </intent-filter>
+        </service>
+
         <!-- Android Auto descriptor -->
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
+
+        <!-- Required minimum Car App API level -->
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
 
         <!-- Google Maps API Key -->
         <meta-data

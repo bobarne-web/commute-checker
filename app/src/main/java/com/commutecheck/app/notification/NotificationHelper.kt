@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.car.app.notification.CarAppExtender
+import androidx.car.app.notification.CarNotificationManager
 import androidx.core.app.NotificationCompat
 import com.commutecheck.app.R
 import com.commutecheck.app.data.DetectedLocation
@@ -23,6 +25,8 @@ class NotificationHelper(private val context: Context) {
 
     private val notificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    private val carNotificationManager = CarNotificationManager.from(context)
 
     init {
         createChannels()
@@ -100,7 +104,7 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_TRAVEL_TIME)
+        val builder = NotificationCompat.Builder(context, CHANNEL_TRAVEL_TIME)
             .setSmallIcon(R.drawable.ic_commute)
             .setContentTitle(title)
             .setContentText(body)
@@ -108,30 +112,46 @@ class NotificationHelper(private val context: Context) {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
-            .build()
+            .extend(
+                CarAppExtender.Builder()
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setImportance(NotificationManager.IMPORTANCE_HIGH)
+                    .build()
+            )
 
-        notificationManager.notify(NOTIFICATION_TRAVEL_TIME_ID, notification)
+        carNotificationManager.notify(NOTIFICATION_TRAVEL_TIME_ID, builder)
     }
 
     fun showSkippedNotification(reason: String) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_SERVICE)
+        val builder = NotificationCompat.Builder(context, CHANNEL_SERVICE)
             .setSmallIcon(R.drawable.ic_commute)
             .setContentTitle("Commute Check Skipped")
             .setContentText(reason)
             .setAutoCancel(true)
-            .build()
+            .extend(
+                CarAppExtender.Builder()
+                    .setContentTitle("Commute Check Skipped")
+                    .setContentText(reason)
+                    .build()
+            )
 
-        notificationManager.notify(NOTIFICATION_TRAVEL_TIME_ID, notification)
+        carNotificationManager.notify(NOTIFICATION_TRAVEL_TIME_ID, builder)
     }
 
     fun showErrorNotification(error: String) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_SERVICE)
+        val builder = NotificationCompat.Builder(context, CHANNEL_SERVICE)
             .setSmallIcon(R.drawable.ic_commute)
             .setContentTitle("Commute Check Error")
             .setContentText(error)
             .setAutoCancel(true)
-            .build()
+            .extend(
+                CarAppExtender.Builder()
+                    .setContentTitle("Commute Check Error")
+                    .setContentText(error)
+                    .build()
+            )
 
-        notificationManager.notify(NOTIFICATION_TRAVEL_TIME_ID, notification)
+        carNotificationManager.notify(NOTIFICATION_TRAVEL_TIME_ID, builder)
     }
 }
