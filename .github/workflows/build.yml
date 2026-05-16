@@ -37,7 +37,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug -PMAPS_API_KEY=${{ secrets.MAPS_API_KEY }}
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
