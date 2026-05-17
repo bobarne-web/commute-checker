@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,8 +16,14 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Store the Google Maps API key in local.properties as MAPS_API_KEY=your_key
-        val mapsApiKey: String = project.findProperty("MAPS_API_KEY") as? String ?: ""
+        // Read MAPS_API_KEY from local.properties, gradle property (-P), or fall back to empty
+        val localProps = Properties()
+        val localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) {
+            localProps.load(localPropsFile.inputStream())
+        }
+        val mapsApiKey: String = project.findProperty("MAPS_API_KEY") as? String
+            ?: localProps.getProperty("MAPS_API_KEY", "")
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
