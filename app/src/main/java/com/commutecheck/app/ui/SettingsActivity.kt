@@ -117,7 +117,7 @@ class SettingsActivity : AppCompatActivity() {
             updateDay(Calendar.SATURDAY, isChecked)
         }
 
-        // Time pickers
+        // Time pickers (12-hour AM/PM format)
         binding.btnStartTime.setOnClickListener {
             TimePickerDialog(
                 this,
@@ -128,7 +128,7 @@ class SettingsActivity : AppCompatActivity() {
                 },
                 currentSchedule.startHour,
                 currentSchedule.startMinute,
-                true
+                false
             ).show()
         }
 
@@ -142,7 +142,7 @@ class SettingsActivity : AppCompatActivity() {
                 },
                 currentSchedule.endHour,
                 currentSchedule.endMinute,
-                true
+                false
             ).show()
         }
 
@@ -176,6 +176,16 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    private fun formatTime12Hour(hour: Int, minute: Int): String {
+        val amPm = if (hour < 12) "AM" else "PM"
+        val displayHour = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        return String.format("%d:%02d %s", displayHour, minute, amPm)
+    }
+
     private fun updateDay(day: Int, enabled: Boolean) {
         val days = currentSchedule.enabledDays.toMutableSet()
         if (enabled) days.add(day) else days.remove(day)
@@ -200,13 +210,9 @@ class SettingsActivity : AppCompatActivity() {
         binding.toggleFriday.isChecked = Calendar.FRIDAY in currentSchedule.enabledDays
         binding.toggleSaturday.isChecked = Calendar.SATURDAY in currentSchedule.enabledDays
 
-        // Time display
-        binding.btnStartTime.text = String.format(
-            "%02d:%02d", currentSchedule.startHour, currentSchedule.startMinute
-        )
-        binding.btnEndTime.text = String.format(
-            "%02d:%02d", currentSchedule.endHour, currentSchedule.endMinute
-        )
+        // Time display (12-hour AM/PM format)
+        binding.btnStartTime.text = formatTime12Hour(currentSchedule.startHour, currentSchedule.startMinute)
+        binding.btnEndTime.text = formatTime12Hour(currentSchedule.endHour, currentSchedule.endMinute)
 
         // Geofence radius
         val radius = prefsManager.getGeofenceRadius()
