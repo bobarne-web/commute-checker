@@ -1,231 +1,108 @@
 package com.commutecheck.app.ui
 
-import android.app.TimePickerDialog
-import android.content.Intent
 import android.os.Bundle
-import android.widget.SeekBar
+import android.text.InputType
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.commutecheck.app.BuildConfig
 import com.commutecheck.app.R
 import com.commutecheck.app.data.PreferencesManager
-import com.commutecheck.app.data.SavedLocation
-import com.commutecheck.app.data.ScheduleConfig
-import com.commutecheck.app.databinding.ActivitySettingsBinding
-import java.util.Calendar
 
+/**
+ * App-wide settings: Google Maps API key and the traffic delay threshold used to
+ * decide when a route is shown red (delayed) vs green (on time).
+ */
 class SettingsActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivitySettingsBinding
-    private lateinit var prefsManager: PreferencesManager
-
-    private var currentSchedule: ScheduleConfig = ScheduleConfig()
-
-    companion object {
-        const val EXTRA_LOCATION_TYPE = "location_type"
-        const val EXTRA_LOCATION_NAME = "location_name"
-        const val EXTRA_LATITUDE = "latitude"
-        const val EXTRA_LONGITUDE = "longitude"
-        const val LOCATION_TYPE_HOME = "home"
-        const val LOCATION_TYPE_WORK = "work"
-    }
-
-    private val homeLocationLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val data = result.data ?: return@registerForActivityResult
-            val name = data.getStringExtra(EXTRA_LOCATION_NAME) ?: "Home"
-            val lat = data.getDoubleExtra(EXTRA_LATITUDE, 0.0)
-            val lng = data.getDoubleExtra(EXTRA_LONGITUDE, 0.0)
-            prefsManager.saveHomeLocation(SavedLocation(name, lat, lng))
-            updateUI()
-            Toast.makeText(this, "Home location saved", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val workLocationLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val data = result.data ?: return@registerForActivityResult
-            val name = data.getStringExtra(EXTRA_LOCATION_NAME) ?: "Work"
-            val lat = data.getDoubleExtra(EXTRA_LATITUDE, 0.0)
-            val lng = data.getDoubleExtra(EXTRA_LONGITUDE, 0.0)
-            prefsManager.saveWorkLocation(SavedLocation(name, lat, lng))
-            updateUI()
-            Toast.makeText(this, "Work location saved", Toast.LENGTH_SHORT).show()
-        }
-    }
+    private lateinit var prefs: PreferencesManager
+    private lateinit var apiKeyInput: EditText
+    private lateinit var thresholdInput: EditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivitySettingsBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        prefs = PreferencesManager(this)
         supportActionBar?.title = getString(R.string.settings_title)
-
-        prefsManager = PreferencesManager(this)
-        currentSchedule = prefsManager.getScheduleConfig()
-
-        setupListeners()
-        updateUI()
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        setContentView(buildLayout())
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        finish()
-        return true
+        finish(); return true
     }
 
-    private fun setupListeners() {
-        // Location pickers
-        binding.btnSetHome.setOnClickListener {
-            val intent = Intent(this, LocationPickerActivity::class.java).apply {
-                putExtra(EXTRA_LOCATION_TYPE, LOCATION_TYPE_HOME)
-            }
-            homeLocationLauncher.launch(intent)
+    private fun buildLayout(): View {
+        val pad = dp(16)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
         }
 
-        binding.btnSetWork.setOnClickListener {
-            val intent = Intent(this, LocationPickerActivity::class.java).apply {
-                putExtra(EXTRA_LOCATION_TYPE, LOCATION_TYPE_WORK)
-            }
-            workLocationLauncher.launch(intent)
+        root.addView(label("Traffic delay threshold (minutes)"))
+        root.addView(TextView(this).apply {
+            text = "Routes delayed by more than this show in red with the extra minutes; otherwise green."
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        thresholdInput = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(prefs.getDelayThresholdMinutes().toString())
         }
+        root.addView(thresholdInput)
 
-        // Day toggles
-        binding.toggleSunday.setOnCheckedChangeListener { _, isChecked ->
-            updateDay(Calendar.SUNDAY, isChecked)
+        root.addView(label(getString(R.string.api_key_section)))
+        root.addView(TextView(this).apply {
+            text = getString(R.string.api_key_description)
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        apiKeyInput = EditText(this).apply {
+            hint = getString(R.string.api_key_hint)
+            inputType = InputType.TYPE_CLASS_TEXT
+            setText(prefs.getMapsApiKey())
         }
-        binding.toggleMonday.setOnCheckedChangeListener { _, isChecked ->
-            updateDay(Calendar.MONDAY, isChecked)
-        }
-        binding.toggleTuesday.setOnCheckedChangeListener { _, isChecked ->
-            updateDay(Calendar.TUESDAY, isChecked)
-        }
-        binding.toggleWednesday.setOnCheckedChangeListener { _, isChecked ->
-            updateDay(Calendar.WEDNESDAY, isChecked)
-        }
-        binding.toggleThursday.setOnCheckedChangeListener { _, isChecked ->
-            updateDay(Calendar.THURSDAY, isChecked)
-        }
-        binding.toggleFriday.setOnCheckedChangeListener { _, isChecked ->
-            updateDay(Calendar.FRIDAY, isChecked)
-        }
-        binding.toggleSaturday.setOnCheckedChangeListener { _, isChecked ->
-            updateDay(Calendar.SATURDAY, isChecked)
-        }
+        root.addView(apiKeyInput)
 
-        // Time pickers (12-hour AM/PM format)
-        binding.btnStartTime.setOnClickListener {
-            TimePickerDialog(
-                this,
-                { _, hour, minute ->
-                    currentSchedule = currentSchedule.copy(startHour = hour, startMinute = minute)
-                    prefsManager.saveScheduleConfig(currentSchedule)
-                    updateUI()
-                },
-                currentSchedule.startHour,
-                currentSchedule.startMinute,
-                false
-            ).show()
+        val buildKeyNote = if (BuildConfig.MAPS_API_KEY.isNotEmpty()) {
+            "A build-time API key is present and used if this field is left blank."
+        } else {
+            "No build-time API key found — enter one here."
         }
-
-        binding.btnEndTime.setOnClickListener {
-            TimePickerDialog(
-                this,
-                { _, hour, minute ->
-                    currentSchedule = currentSchedule.copy(endHour = hour, endMinute = minute)
-                    prefsManager.saveScheduleConfig(currentSchedule)
-                    updateUI()
-                },
-                currentSchedule.endHour,
-                currentSchedule.endMinute,
-                false
-            ).show()
-        }
-
-        // Geofence radius
-        binding.seekbarRadius.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val radius = (progress + 1) * 100f // 100m to 2000m
-                binding.tvRadiusValue.text = getString(R.string.radius_format, radius.toInt())
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                val radius = ((seekBar?.progress ?: 4) + 1) * 100f
-                prefsManager.saveGeofenceRadius(radius)
-            }
+        root.addView(TextView(this).apply {
+            text = buildKeyNote
+            setTextColor(getColor(R.color.text_secondary))
+            setPadding(0, dp(4), 0, 0)
         })
 
-        // Work always check
-        binding.switchWorkAlwaysCheck.setOnCheckedChangeListener { _, isChecked ->
-            prefsManager.setWorkAlwaysCheck(isChecked)
-        }
+        root.addView(Button(this).apply {
+            text = getString(R.string.save)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(24) }
+            setOnClickListener { save() }
+        })
 
-        // API Key
-        binding.btnSaveApiKey.setOnClickListener {
-            val key = binding.etApiKey.text.toString().trim()
-            if (key.isNotEmpty()) {
-                prefsManager.saveMapsApiKey(key)
-                Toast.makeText(this, "API key saved", Toast.LENGTH_SHORT).show()
-            }
-        }
+        return ScrollView(this).apply { addView(root) }
     }
 
-    private fun formatTime12Hour(hour: Int, minute: Int): String {
-        val amPm = if (hour < 12) "AM" else "PM"
-        val displayHour = when {
-            hour == 0 -> 12
-            hour > 12 -> hour - 12
-            else -> hour
-        }
-        return String.format("%d:%02d %s", displayHour, minute, amPm)
+    private fun save() {
+        val threshold = thresholdInput.text.toString().toIntOrNull()
+            ?: PreferencesManager.DEFAULT_DELAY_THRESHOLD_MIN
+        prefs.setDelayThresholdMinutes(threshold.coerceAtLeast(0))
+        prefs.saveMapsApiKey(apiKeyInput.text.toString().trim())
+        Toast.makeText(this, "Settings saved", Toast.LENGTH_SHORT).show()
+        finish()
     }
 
-    private fun updateDay(day: Int, enabled: Boolean) {
-        val days = currentSchedule.enabledDays.toMutableSet()
-        if (enabled) days.add(day) else days.remove(day)
-        currentSchedule = currentSchedule.copy(enabledDays = days)
-        prefsManager.saveScheduleConfig(currentSchedule)
+    private fun label(text: String): TextView = TextView(this).apply {
+        this.text = text
+        textSize = 16f
+        setPadding(0, dp(16), 0, dp(4))
+        setTextColor(getColor(R.color.text_primary))
     }
 
-    private fun updateUI() {
-        // Locations
-        val home = prefsManager.getHomeLocation()
-        val work = prefsManager.getWorkLocation()
-
-        binding.tvHomeLocationValue.text = home?.name ?: getString(R.string.not_set)
-        binding.tvWorkLocationValue.text = work?.name ?: getString(R.string.not_set)
-
-        // Schedule days
-        binding.toggleSunday.isChecked = Calendar.SUNDAY in currentSchedule.enabledDays
-        binding.toggleMonday.isChecked = Calendar.MONDAY in currentSchedule.enabledDays
-        binding.toggleTuesday.isChecked = Calendar.TUESDAY in currentSchedule.enabledDays
-        binding.toggleWednesday.isChecked = Calendar.WEDNESDAY in currentSchedule.enabledDays
-        binding.toggleThursday.isChecked = Calendar.THURSDAY in currentSchedule.enabledDays
-        binding.toggleFriday.isChecked = Calendar.FRIDAY in currentSchedule.enabledDays
-        binding.toggleSaturday.isChecked = Calendar.SATURDAY in currentSchedule.enabledDays
-
-        // Time display (12-hour AM/PM format)
-        binding.btnStartTime.text = formatTime12Hour(currentSchedule.startHour, currentSchedule.startMinute)
-        binding.btnEndTime.text = formatTime12Hour(currentSchedule.endHour, currentSchedule.endMinute)
-
-        // Geofence radius
-        val radius = prefsManager.getGeofenceRadius()
-        binding.seekbarRadius.progress = (radius / 100f).toInt() - 1
-        binding.tvRadiusValue.text = getString(R.string.radius_format, radius.toInt())
-
-        // Work always check
-        binding.switchWorkAlwaysCheck.isChecked = prefsManager.isWorkAlwaysCheck()
-
-        // API Key
-        val apiKey = prefsManager.getMapsApiKey()
-        if (apiKey.isNotEmpty()) {
-            binding.etApiKey.setText(apiKey)
-        }
-    }
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 }

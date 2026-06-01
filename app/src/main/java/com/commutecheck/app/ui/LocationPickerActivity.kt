@@ -30,7 +30,6 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var binding: ActivityLocationPickerBinding
     private var googleMap: GoogleMap? = null
     private var selectedLatLng: LatLng? = null
-    private var locationType: String = ""
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,14 +37,10 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
         binding = ActivityLocationPickerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        locationType = intent.getStringExtra(SettingsActivity.EXTRA_LOCATION_TYPE) ?: ""
-        val title = if (locationType == SettingsActivity.LOCATION_TYPE_HOME) {
-            getString(R.string.set_home_location)
-        } else {
-            getString(R.string.set_work_location)
-        }
-        supportActionBar?.title = title
+        supportActionBar?.title = intent.getStringExtra(EXTRA_TITLE) ?: getString(R.string.pick_location)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
+        intent.getStringExtra(EXTRA_INITIAL_NAME)?.let { binding.etLocationName.setText(it) }
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
@@ -156,17 +151,23 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
             return
         }
 
-        val name = binding.etLocationName.text.toString().trim().ifEmpty {
-            if (locationType == SettingsActivity.LOCATION_TYPE_HOME) "Home" else "Work"
-        }
+        val name = binding.etLocationName.text.toString().trim().ifEmpty { "Location" }
 
         val resultIntent = Intent().apply {
-            putExtra(SettingsActivity.EXTRA_LOCATION_NAME, name)
-            putExtra(SettingsActivity.EXTRA_LATITUDE, latLng.latitude)
-            putExtra(SettingsActivity.EXTRA_LONGITUDE, latLng.longitude)
+            putExtra(EXTRA_LOCATION_NAME, name)
+            putExtra(EXTRA_LATITUDE, latLng.latitude)
+            putExtra(EXTRA_LONGITUDE, latLng.longitude)
         }
         setResult(RESULT_OK, resultIntent)
         finish()
+    }
+
+    companion object {
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_INITIAL_NAME = "initial_name"
+        const val EXTRA_LOCATION_NAME = "location_name"
+        const val EXTRA_LATITUDE = "latitude"
+        const val EXTRA_LONGITUDE = "longitude"
     }
 
     @Suppress("DEPRECATION")

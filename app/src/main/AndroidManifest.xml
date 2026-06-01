@@ -48,6 +48,27 @@
             android:label="@string/settings_title"
             android:parentActivityName=".ui.MainActivity" />
 
+        <!-- Places management -->
+        <activity
+            android:name=".ui.PlacesActivity"
+            android:exported="false"
+            android:label="Places"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <!-- Watches management -->
+        <activity
+            android:name=".ui.WatchesActivity"
+            android:exported="false"
+            android:label="Commute Watches"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <!-- Watch editor -->
+        <activity
+            android:name=".ui.WatchEditorActivity"
+            android:exported="false"
+            android:label="Watch"
+            android:parentActivityName=".ui.WatchesActivity" />
+
         <!-- Location Picker Activity -->
         <activity
             android:name=".ui.LocationPickerActivity"

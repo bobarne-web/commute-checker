@@ -13,88 +13,68 @@ class PreferencesManager(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "commute_checker_prefs"
-        private const val KEY_HOME_LOCATION = "home_location"
-        private const val KEY_WORK_LOCATION = "work_location"
-        private const val KEY_SCHEDULE_ENABLED_DAYS = "schedule_enabled_days"
-        private const val KEY_SCHEDULE_START_HOUR = "schedule_start_hour"
-        private const val KEY_SCHEDULE_START_MINUTE = "schedule_start_minute"
-        private const val KEY_SCHEDULE_END_HOUR = "schedule_end_hour"
-        private const val KEY_SCHEDULE_END_MINUTE = "schedule_end_minute"
-        private const val KEY_GEOFENCE_RADIUS = "geofence_radius_meters"
+        private const val KEY_PLACES = "places"
+        private const val KEY_WATCHES = "watches"
         private const val KEY_APP_ENABLED = "app_enabled"
-        private const val KEY_WORK_ALWAYS_CHECK = "work_always_check"
         private const val KEY_MAPS_API_KEY = "maps_api_key"
+        private const val KEY_DELAY_THRESHOLD_MIN = "delay_threshold_minutes"
+        private const val KEY_LAST_RESULTS = "last_results"
+        private const val KEY_LAST_RESULTS_PLACE = "last_results_place"
+        private const val KEY_LAST_RESULTS_TIME = "last_results_time"
 
-        private const val DEFAULT_GEOFENCE_RADIUS = 500f // meters
+        const val DEFAULT_DELAY_THRESHOLD_MIN = 3
     }
 
-    // --- Home Location ---
+    // --- Places ---
 
-    fun saveHomeLocation(location: SavedLocation) {
-        prefs.edit().putString(KEY_HOME_LOCATION, gson.toJson(location)).apply()
+    fun getPlaces(): List<Place> {
+        val json = prefs.getString(KEY_PLACES, null) ?: return emptyList()
+        val type = object : TypeToken<List<Place>>() {}.type
+        return gson.fromJson(json, type) ?: emptyList()
     }
 
-    fun getHomeLocation(): SavedLocation? {
-        val json = prefs.getString(KEY_HOME_LOCATION, null) ?: return null
-        return gson.fromJson(json, SavedLocation::class.java)
+    fun savePlaces(places: List<Place>) {
+        prefs.edit().putString(KEY_PLACES, gson.toJson(places)).apply()
     }
 
-    // --- Work Location ---
+    fun getPlace(id: String): Place? = getPlaces().firstOrNull { it.id == id }
 
-    fun saveWorkLocation(location: SavedLocation) {
-        prefs.edit().putString(KEY_WORK_LOCATION, gson.toJson(location)).apply()
+    fun upsertPlace(place: Place) {
+        val places = getPlaces().toMutableList()
+        val index = places.indexOfFirst { it.id == place.id }
+        if (index >= 0) places[index] = place else places.add(place)
+        savePlaces(places)
     }
 
-    fun getWorkLocation(): SavedLocation? {
-        val json = prefs.getString(KEY_WORK_LOCATION, null) ?: return null
-        return gson.fromJson(json, SavedLocation::class.java)
+    fun deletePlace(id: String) {
+        savePlaces(getPlaces().filter { it.id != id })
+        // Remove watches that pointed at this place
+        saveWatches(getWatches().filter { it.destinationPlaceId != id })
     }
 
-    // --- Schedule ---
+    // --- Watches ---
 
-    fun saveScheduleConfig(config: ScheduleConfig) {
-        prefs.edit().apply {
-            putString(KEY_SCHEDULE_ENABLED_DAYS, gson.toJson(config.enabledDays.toList()))
-            putInt(KEY_SCHEDULE_START_HOUR, config.startHour)
-            putInt(KEY_SCHEDULE_START_MINUTE, config.startMinute)
-            putInt(KEY_SCHEDULE_END_HOUR, config.endHour)
-            putInt(KEY_SCHEDULE_END_MINUTE, config.endMinute)
-            apply()
-        }
+    fun getWatches(): List<Watch> {
+        val json = prefs.getString(KEY_WATCHES, null) ?: return emptyList()
+        val type = object : TypeToken<List<Watch>>() {}.type
+        return gson.fromJson(json, type) ?: emptyList()
     }
 
-    fun getScheduleConfig(): ScheduleConfig {
-        val daysJson = prefs.getString(KEY_SCHEDULE_ENABLED_DAYS, null)
-        val days: Set<Int> = if (daysJson != null) {
-            val type = object : TypeToken<List<Int>>() {}.type
-            gson.fromJson<List<Int>>(daysJson, type).toSet()
-        } else {
-            setOf(
-                java.util.Calendar.MONDAY,
-                java.util.Calendar.TUESDAY,
-                java.util.Calendar.WEDNESDAY,
-                java.util.Calendar.THURSDAY,
-                java.util.Calendar.FRIDAY
-            )
-        }
-
-        return ScheduleConfig(
-            enabledDays = days,
-            startHour = prefs.getInt(KEY_SCHEDULE_START_HOUR, 5),
-            startMinute = prefs.getInt(KEY_SCHEDULE_START_MINUTE, 0),
-            endHour = prefs.getInt(KEY_SCHEDULE_END_HOUR, 10),
-            endMinute = prefs.getInt(KEY_SCHEDULE_END_MINUTE, 0)
-        )
+    fun saveWatches(watches: List<Watch>) {
+        prefs.edit().putString(KEY_WATCHES, gson.toJson(watches)).apply()
     }
 
-    // --- Geofence Radius ---
+    fun getWatch(id: String): Watch? = getWatches().firstOrNull { it.id == id }
 
-    fun getGeofenceRadius(): Float {
-        return prefs.getFloat(KEY_GEOFENCE_RADIUS, DEFAULT_GEOFENCE_RADIUS)
+    fun upsertWatch(watch: Watch) {
+        val watches = getWatches().toMutableList()
+        val index = watches.indexOfFirst { it.id == watch.id }
+        if (index >= 0) watches[index] = watch else watches.add(watch)
+        saveWatches(watches)
     }
 
-    fun saveGeofenceRadius(radiusMeters: Float) {
-        prefs.edit().putFloat(KEY_GEOFENCE_RADIUS, radiusMeters).apply()
+    fun deleteWatch(id: String) {
+        saveWatches(getWatches().filter { it.id != id })
     }
 
     // --- App Enabled ---
@@ -105,27 +85,45 @@ class PreferencesManager(context: Context) {
         prefs.edit().putBoolean(KEY_APP_ENABLED, enabled).apply()
     }
 
-    // --- Work Always Check ---
-
-    fun isWorkAlwaysCheck(): Boolean = prefs.getBoolean(KEY_WORK_ALWAYS_CHECK, true)
-
-    fun setWorkAlwaysCheck(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_WORK_ALWAYS_CHECK, enabled).apply()
-    }
-
     // --- Maps API Key ---
 
-    fun getMapsApiKey(): String {
-        return prefs.getString(KEY_MAPS_API_KEY, "") ?: ""
-    }
+    fun getMapsApiKey(): String = prefs.getString(KEY_MAPS_API_KEY, "") ?: ""
 
     fun saveMapsApiKey(key: String) {
         prefs.edit().putString(KEY_MAPS_API_KEY, key).apply()
     }
 
-    // --- Check if configured ---
+    // --- Delay threshold (minutes) ---
 
-    fun isConfigured(): Boolean {
-        return getHomeLocation() != null && getWorkLocation() != null
+    fun getDelayThresholdMinutes(): Int =
+        prefs.getInt(KEY_DELAY_THRESHOLD_MIN, DEFAULT_DELAY_THRESHOLD_MIN)
+
+    fun setDelayThresholdMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_DELAY_THRESHOLD_MIN, minutes).apply()
     }
+
+    // --- Last results cache (so the car screen can show the most recent check) ---
+
+    fun saveLastResults(placeName: String, results: List<RouteCheckResult>) {
+        prefs.edit()
+            .putString(KEY_LAST_RESULTS, gson.toJson(results))
+            .putString(KEY_LAST_RESULTS_PLACE, placeName)
+            .putLong(KEY_LAST_RESULTS_TIME, System.currentTimeMillis())
+            .apply()
+    }
+
+    fun getLastResults(): List<RouteCheckResult> {
+        val json = prefs.getString(KEY_LAST_RESULTS, null) ?: return emptyList()
+        val type = object : TypeToken<List<RouteCheckResult>>() {}.type
+        return gson.fromJson(json, type) ?: emptyList()
+    }
+
+    fun getLastResultsPlace(): String = prefs.getString(KEY_LAST_RESULTS_PLACE, "") ?: ""
+
+    fun getLastResultsTime(): Long = prefs.getLong(KEY_LAST_RESULTS_TIME, 0L)
+
+    // --- Configuration check ---
+
+    /** Configured once there is at least one place and one watch. */
+    fun isConfigured(): Boolean = getPlaces().isNotEmpty() && getWatches().isNotEmpty()
 }

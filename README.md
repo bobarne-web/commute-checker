@@ -1,43 +1,50 @@
 # Commute Checker
 
-An Android app for Galaxy S25 Ultra that automatically checks travel times when you connect to Android Auto.
+An Android app for Galaxy S25 Ultra that automatically checks travel times when you connect to Android Auto, and shows a color-coded dashboard on the car screen.
 
 ## Features
 
 - **Auto-detect Android Auto connection** — triggers when you plug your phone into your car's USB port
-- **Location-aware routing** — checks travel time to home when at work, and to work when at home
-- **Smart scheduling** — configure which days and times to check home→work travel (for when you rarely go into the office)
-- **Work→Home always on** — always shows travel time home when you're leaving work
-- **Live traffic data** — uses Google Maps Directions API with real-time traffic
-- **Configurable geofence radius** — adjust how close you need to be to be considered "at" a location
-- **Map-based location picker** — tap the map or use your current location to set home/work
+- **Multiple destinations** — save as many places as you like (Home, Work, Truckee, Reno, …) and check travel time to any of them
+- **Per-destination watches** — each destination has its own active days, time window, on/off toggle, and seasonal active-months
+- **Color-coded delays** — each route shows **green** when on time and **red** with the extra delay minutes when traffic exceeds your threshold (default 3 min)
+- **Travel from wherever you are** — times are computed from your current location, so a road closure (e.g. Graeagle → Truckee) shows up as a big delay before you commit to the drive
+- **Seasonal watches** — e.g. set the Truckee watch to summer only (May–Oct) so it goes quiet in winter
+- **Car-screen dashboard** — a color-coded list of all relevant routes appears on Android Auto
+- **Live traffic data** — uses the Google Maps Directions API with real-time traffic
 
 ## How It Works
 
 1. You plug your Galaxy S25 Ultra into your car via USB (Android Auto)
-2. The app detects the USB power connection
-3. It checks your GPS location against your saved home and work locations
-4. Based on where you are and the current day/time schedule:
-   - **At work** → shows travel time to home (always, unless disabled)
-   - **At home** → shows travel time to work (only on scheduled days/times)
-   - **Elsewhere** → skips the check
-5. A notification appears with the travel time including traffic conditions
+2. The app detects the USB power connection and gets your GPS location
+3. It figures out which saved **Place** you're at (or "on the road")
+4. It evaluates every **Watch** and runs the ones whose day / time / season match right now (skipping any whose destination is where you already are)
+5. For each, it fetches travel time from your current location and computes the traffic delay
+6. A color-coded summary appears as a notification and on the Android Auto car screen
+
+## Concepts
+
+- **Place** — a named location with coordinates and a detection radius. Used both to detect where you are and as a destination.
+- **Watch** — a rule that checks travel time to a destination Place when the car starts. Each watch has:
+  - Active **days** (default every day)
+  - A **time window** (e.g. a 3-hour morning window)
+  - A master **on/off** toggle
+  - **Active months** for seasonal use (All year, Summer only, or custom)
 
 ## Setup
 
 ### Prerequisites
 
 - Android Studio Hedgehog or later
-- Google Maps API key with **Directions API** enabled
+- Google Maps API key with **Directions API** + **Maps SDK for Android** enabled
 - Galaxy S25 Ultra (or any Android 10+ device)
 
 ### Google Maps API Key
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a project or select an existing one
-3. Enable the **Directions API** and **Maps SDK for Android**
-4. Create an API key and restrict it to your app's package name
-5. Enter the key in the app's Settings screen, or add it to `local.properties`:
+2. Enable the **Directions API** and **Maps SDK for Android**
+3. Create an API key and restrict it to your app's package name + SHA-1
+4. Enter the key in the app's Settings screen, or add it to `local.properties`:
    ```
    MAPS_API_KEY=your_api_key_here
    ```
@@ -58,27 +65,32 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ## Configuration
 
-After installing, open the app and configure:
+After installing, open the app and:
 
-1. **Home Location** — tap the map or use "Use Current" to set your home
-2. **Work Location** — same for your workplace
-3. **Home→Work Schedule** — select which days and the time window for checking travel to work
-4. **Work→Home** — toggle to always check (enabled by default)
-5. **Detection Radius** — how close (in meters) to be considered "at" a location (default: 500m)
-6. **Google Maps API Key** — enter your Directions API key
+1. **Manage Places** — add Home, Work, and any destinations you check often (Truckee, Reno, …). Name each, set a radius, and pick it on the map.
+2. **Manage Commute Watches** — add a watch per destination:
+   - Pick the destination Place
+   - Choose active days (Every day / Weekdays / custom)
+   - Set the time window (12-hour AM/PM)
+   - Choose a season (All year / Summer only / custom months)
+   - Toggle it on/off
+3. **Settings** — set your traffic **delay threshold** (default 3 min) and Google Maps API key.
 
 ## Architecture
 
 - **`AndroidAutoReceiver`** — BroadcastReceiver listening for USB power connect/disconnect
-- **`CommuteCheckService`** — Foreground service that gets location, determines if at home/work, checks schedule, and fetches travel time
-- **`DirectionsApiClient`** — OkHttp-based client for Google Maps Directions API
-- **`NotificationHelper`** — Handles notification channels and travel time display
-- **`PreferencesManager`** — SharedPreferences wrapper for all settings
+- **`CommuteCheckService`** — Foreground service that runs the check engine and posts the notification
+- **`CommuteEngine`** — Shared logic: detect current place, evaluate active watches, fetch travel times in parallel, compute delays. Used by both the service and the car screen.
+- **`DirectionsApiClient`** — OkHttp-based client for the Google Maps Directions API
+- **`CommuteScreen` / `CommuteCarAppService`** — the Android Auto car-screen dashboard
+- **`NotificationHelper`** — notification channels and color-coded travel-time summary
+- **`PreferencesManager`** — SharedPreferences wrapper storing Places, Watches, and settings
+- **`PlacesActivity` / `WatchesActivity` / `WatchEditorActivity`** — phone UI for managing places and watches
 - **`LocationPickerActivity`** — Google Maps-based location selector
 
 ## Permissions
 
-- **Fine/Coarse Location** — to determine if you're at home or work
+- **Fine/Coarse Location** — to determine which place you're at
 - **Background Location** — to check location when triggered by USB connection
 - **Internet** — to call the Directions API
 - **Foreground Service (Location)** — to run the commute check

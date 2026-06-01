@@ -10,8 +10,7 @@ import androidx.car.app.notification.CarAppExtender
 import androidx.car.app.notification.CarNotificationManager
 import androidx.core.app.NotificationCompat
 import com.commutecheck.app.R
-import com.commutecheck.app.data.DetectedLocation
-import com.commutecheck.app.data.TravelTimeResult
+import com.commutecheck.app.data.RouteCheckResult
 import com.commutecheck.app.ui.MainActivity
 
 class NotificationHelper(private val context: Context) {
@@ -73,29 +72,22 @@ class NotificationHelper(private val context: Context) {
             .build()
     }
 
-    fun showTravelTimeNotification(
-        detectedLocation: DetectedLocation,
-        result: TravelTimeResult
-    ) {
-        val destination = when (detectedLocation) {
-            DetectedLocation.HOME -> "Work"
-            DetectedLocation.WORK -> "Home"
-            DetectedLocation.UNKNOWN -> return
+    /**
+     * Show a summary of all checked routes. Each route shows its travel time and,
+     * when delayed beyond the threshold, the extra minutes are flagged.
+     */
+    fun showResultsNotification(currentPlaceName: String?, results: List<RouteCheckResult>) {
+        if (results.isEmpty()) return
+
+        val anyDelayed = results.any { it.isDelayed }
+        val title = if (currentPlaceName != null) {
+            "Commute from $currentPlaceName"
+        } else {
+            "Commute times"
         }
 
-        val title = "Travel time to $destination"
-        val body = buildString {
-            append(result.durationInTrafficText)
-            append(" (${result.distanceText})")
-            if (result.summary.isNotEmpty()) {
-                append(" via ${result.summary}")
-            }
-            val diff = result.durationInTrafficSeconds - result.durationSeconds
-            if (diff > 60) {
-                val extraMin = diff / 60
-                append("\n+${extraMin} min due to traffic")
-            }
-        }
+        val lines = results.map { formatResultLine(it) }
+        val body = lines.joinToString("\n")
 
         val pendingIntent = PendingIntent.getActivity(
             context,
@@ -104,12 +96,17 @@ class NotificationHelper(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val inboxStyle = NotificationCompat.InboxStyle().setBigContentTitle(title)
+        lines.forEach { inboxStyle.addLine(it) }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_TRAVEL_TIME)
             .setSmallIcon(R.drawable.ic_commute)
             .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentText(if (anyDelayed) "Delays detected — tap for details" else body)
+            .setStyle(inboxStyle)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setColor(context.getColor(if (anyDelayed) R.color.delay_red else R.color.delay_green))
+            .setColorized(true)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .extend(
@@ -121,6 +118,22 @@ class NotificationHelper(private val context: Context) {
             )
 
         carNotificationManager.notify(NOTIFICATION_TRAVEL_TIME_ID, builder)
+    }
+
+    private fun formatResultLine(result: RouteCheckResult): String {
+        if (result.hasError) {
+            return "${result.destinationName}: unavailable"
+        }
+        return buildString {
+            append(result.destinationName)
+            append(": ")
+            append(result.durationInTrafficText)
+            if (result.isDelayed) {
+                append("  🔴 +${result.delayMinutes} min")
+            } else {
+                append("  🟢")
+            }
+        }
     }
 
     fun showSkippedNotification(reason: String) {
