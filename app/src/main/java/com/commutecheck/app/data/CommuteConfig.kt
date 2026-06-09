@@ -45,14 +45,17 @@ data class Watch(
     val endMinute: Int = 59,
     val enabled: Boolean = true,
     val activeMonths: Set<Int> = ALL_MONTHS,
-    val skipIfAtDestination: Boolean = true
+    val skipIfAtDestination: Boolean = true,
+    val alwaysCheck: Boolean = false
 ) {
     /**
      * True if this watch should run right now (master toggle on, today is an enabled
      * day, the current month is in season, and the current time is within the window).
+     * If [alwaysCheck] is true, only the master [enabled] toggle is checked.
      */
     fun isActiveNow(calendar: Calendar = Calendar.getInstance()): Boolean {
         if (!enabled) return false
+        if (alwaysCheck) return true
 
         val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
         if (dayOfWeek !in enabledDays) return false

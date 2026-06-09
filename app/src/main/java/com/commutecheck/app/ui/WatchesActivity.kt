@@ -123,11 +123,15 @@ class WatchesActivity : AppCompatActivity() {
         val dest = prefs.getPlace(watch.destinationPlaceId)?.name ?: "(deleted place)"
         return buildString {
             append("→ $dest\n")
-            append(daysSummary(watch.enabledDays))
-            append("  ·  ")
-            append(timeWindow(watch))
-            append("\n")
-            append(seasonSummary(watch.activeMonths))
+            if (watch.alwaysCheck) {
+                append("Always (any day/time/season)")
+            } else {
+                append(daysSummary(watch.enabledDays))
+                append("  ·  ")
+                append(timeWindow(watch))
+                append("\n")
+                append(seasonSummary(watch.activeMonths))
+            }
         }
     }
 

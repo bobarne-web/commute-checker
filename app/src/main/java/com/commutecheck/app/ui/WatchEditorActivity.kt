@@ -1,12 +1,15 @@
 package com.commutecheck.app.ui
 
 import android.app.TimePickerDialog
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -37,10 +40,15 @@ class WatchEditorActivity : AppCompatActivity() {
     private lateinit var nameInput: EditText
     private lateinit var placeSpinner: Spinner
     private lateinit var enabledSwitch: SwitchCompat
+    private lateinit var alwaysCheckBox: CheckBox
     private lateinit var startTimeButton: Button
     private lateinit var endTimeButton: Button
     private lateinit var seasonGroup: RadioGroup
     private val dayToggles = mutableMapOf<Int, ToggleButton>()
+    private lateinit var daysContainer: LinearLayout
+    private lateinit var dayShortcutsContainer: View
+    private lateinit var timeContainer: LinearLayout
+    private lateinit var seasonLabel: TextView
 
     private var existing: Watch? = null
     private var startHour = 6
@@ -102,12 +110,26 @@ class WatchEditorActivity : AppCompatActivity() {
         )
         root.addView(placeSpinner)
 
-        root.addView(sectionLabel("Active days"))
-        root.addView(buildDayToggles())
-        root.addView(buildDayShortcuts())
+        alwaysCheckBox = CheckBox(this).apply {
+            text = "Always check (ignore schedule)"
+            isChecked = existing?.alwaysCheck ?: false
+            setPadding(0, dp(12), 0, dp(4))
+            setOnCheckedChangeListener { _, isChecked -> updateScheduleFieldsEnabled(!isChecked) }
+        }
+        root.addView(alwaysCheckBox)
 
-        root.addView(sectionLabel("Time window"))
-        val timeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val daysLabel = sectionLabel("Active days")
+        root.addView(daysLabel)
+        daysContainer = buildDayToggles() as LinearLayout
+        root.addView(daysContainer)
+        dayShortcutsContainer = buildDayShortcuts()
+        root.addView(dayShortcutsContainer)
+
+        val timeSectionLabel = sectionLabel("Time window")
+        seasonLabel = timeSectionLabel
+        root.addView(timeSectionLabel)
+        timeContainer = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val timeRow = timeContainer
         startTimeButton = Button(this).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             setOnClickListener { pickTime(true) }
@@ -124,7 +146,8 @@ class WatchEditorActivity : AppCompatActivity() {
         timeRow.addView(endTimeButton)
         root.addView(timeRow)
 
-        root.addView(sectionLabel("Season (active months)"))
+        val seasonSectionLabel = sectionLabel("Season (active months)")
+        root.addView(seasonSectionLabel)
         seasonGroup = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
         seasonGroup.addView(RadioButton(this).apply { id = R_ALL_YEAR; text = "All year" })
         seasonGroup.addView(RadioButton(this).apply { id = R_SUMMER; text = "Summer only (May–Oct)" })
@@ -166,6 +189,8 @@ class WatchEditorActivity : AppCompatActivity() {
 
     private fun buildDayToggles(): View {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val checkedBg = getColor(R.color.primary)
+        val uncheckedBg = Color.parseColor("#E0E0E0")
         dayOrder.forEachIndexed { index, day ->
             val toggle = ToggleButton(this).apply {
                 textOn = dayLabels[index]
@@ -174,11 +199,32 @@ class WatchEditorActivity : AppCompatActivity() {
                 isChecked = true
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 setPadding(0, dp(8), 0, dp(8))
+                updateToggleColors(this, true, checkedBg, uncheckedBg)
+                setOnCheckedChangeListener { _, isChecked ->
+                    updateToggleColors(this, isChecked, checkedBg, uncheckedBg)
+                }
             }
             dayToggles[day] = toggle
             row.addView(toggle)
         }
         return row
+    }
+
+    private fun updateToggleColors(toggle: ToggleButton, isChecked: Boolean, checkedBg: Int, uncheckedBg: Int) {
+        toggle.backgroundTintList = ColorStateList.valueOf(if (isChecked) checkedBg else uncheckedBg)
+        toggle.setTextColor(if (isChecked) Color.WHITE else Color.parseColor("#333333"))
+    }
+
+    private fun updateScheduleFieldsEnabled(enabled: Boolean) {
+        val alpha = if (enabled) 1.0f else 0.4f
+        daysContainer.alpha = alpha
+        dayShortcutsContainer.alpha = alpha
+        timeContainer.alpha = alpha
+        seasonGroup.alpha = alpha
+        for ((_, toggle) in dayToggles) toggle.isEnabled = enabled
+        startTimeButton.isEnabled = enabled
+        endTimeButton.isEnabled = enabled
+        for (i in 0 until seasonGroup.childCount) seasonGroup.getChildAt(i).isEnabled = enabled
     }
 
     private fun buildDayShortcuts(): View {
@@ -220,6 +266,11 @@ class WatchEditorActivity : AppCompatActivity() {
         )
         suppressSeasonListener = false
         updateTimeButtons()
+        // Always check
+        if (watch?.alwaysCheck == true) {
+            alwaysCheckBox.isChecked = true
+            updateScheduleFieldsEnabled(false)
+        }
     }
 
     private fun pickTime(isStart: Boolean) {
@@ -255,11 +306,11 @@ class WatchEditorActivity : AppCompatActivity() {
             return
         }
         val selectedDays = dayToggles.filterValues { it.isChecked }.keys
-        if (selectedDays.isEmpty()) {
+        if (!alwaysCheckBox.isChecked && selectedDays.isEmpty()) {
             Toast.makeText(this, "Pick at least one day", Toast.LENGTH_SHORT).show()
             return
         }
-        if (customMonths.isEmpty()) {
+        if (!alwaysCheckBox.isChecked && customMonths.isEmpty()) {
             Toast.makeText(this, "Pick at least one active month", Toast.LENGTH_SHORT).show()
             return
         }
@@ -267,17 +318,19 @@ class WatchEditorActivity : AppCompatActivity() {
         val destination = places[placeSpinner.selectedItemPosition]
         val name = nameInput.text.toString().trim().ifEmpty { "To ${destination.name}" }
 
+        val isAlways = alwaysCheckBox.isChecked
         val watch = Watch(
             id = existing?.id ?: Watch.newId(),
             name = name,
             destinationPlaceId = destination.id,
-            enabledDays = selectedDays,
-            startHour = startHour,
-            startMinute = startMinute,
-            endHour = endHour,
-            endMinute = endMinute,
+            enabledDays = if (isAlways) Watch.ALL_DAYS else selectedDays,
+            startHour = if (isAlways) 0 else startHour,
+            startMinute = if (isAlways) 0 else startMinute,
+            endHour = if (isAlways) 23 else endHour,
+            endMinute = if (isAlways) 59 else endMinute,
             enabled = enabledSwitch.isChecked,
-            activeMonths = customMonths
+            activeMonths = if (isAlways) Watch.ALL_MONTHS else customMonths,
+            alwaysCheck = isAlways
         )
         prefs.upsertWatch(watch)
         Toast.makeText(this, "Saved $name", Toast.LENGTH_SHORT).show()
