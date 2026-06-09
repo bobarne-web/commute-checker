@@ -30,6 +30,7 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var binding: ActivityLocationPickerBinding
     private var googleMap: GoogleMap? = null
     private var selectedLatLng: LatLng? = null
+    private var selectedAddress: String = ""
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,7 +41,9 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
         supportActionBar?.title = intent.getStringExtra(EXTRA_TITLE) ?: getString(R.string.pick_location)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
-        intent.getStringExtra(EXTRA_INITIAL_NAME)?.let { binding.etLocationName.setText(it) }
+        // Name field removed — name is set in the parent dialog.
+        binding.etLocationName.visibility = android.view.View.GONE
+        (binding.etLocationName.parent as? android.view.View)?.visibility = android.view.View.GONE
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
@@ -95,14 +98,12 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
         )
 
         scope.launch {
-            val address = reverseGeocode(latLng.latitude, latLng.longitude)
-            binding.tvSelectedAddress.text = address ?: getString(
+            val addr = reverseGeocode(latLng.latitude, latLng.longitude)
+            selectedAddress = addr ?: ""
+            binding.tvSelectedAddress.text = addr ?: getString(
                 R.string.coordinates_format,
                 latLng.latitude,
                 latLng.longitude
-            )
-            binding.etLocationName.setText(
-                address?.split(",")?.firstOrNull()?.trim() ?: ""
             )
         }
     }
@@ -151,12 +152,10 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
             return
         }
 
-        val name = binding.etLocationName.text.toString().trim().ifEmpty { "Location" }
-
         val resultIntent = Intent().apply {
-            putExtra(EXTRA_LOCATION_NAME, name)
             putExtra(EXTRA_LATITUDE, latLng.latitude)
             putExtra(EXTRA_LONGITUDE, latLng.longitude)
+            putExtra(EXTRA_ADDRESS, selectedAddress)
         }
         setResult(RESULT_OK, resultIntent)
         finish()
@@ -168,6 +167,7 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
         const val EXTRA_LOCATION_NAME = "location_name"
         const val EXTRA_LATITUDE = "latitude"
         const val EXTRA_LONGITUDE = "longitude"
+        const val EXTRA_ADDRESS = "address"
     }
 
     @Suppress("DEPRECATION")

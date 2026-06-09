@@ -1,10 +1,11 @@
 package com.commutecheck.app.ui
 
 import android.content.Intent
+import android.location.Geocoder
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
-import android.view.View
+
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -17,17 +18,24 @@ import androidx.appcompat.app.AppCompatActivity
 import com.commutecheck.app.R
 import com.commutecheck.app.data.Place
 import com.commutecheck.app.data.PreferencesManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * Lets the user manage saved places (Home, Work, Truckee, Reno, …). Each place has
- * a name, coordinates (picked on a map), and a detection radius.
+ * a friendly name, coordinates (from map / address / manual), and a detection radius.
  */
 class PlacesActivity : AppCompatActivity() {
 
     private lateinit var prefs: PreferencesManager
     private lateinit var listContainer: LinearLayout
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    // Holds the pending name/radius while the map picker is open.
     private var pendingName: String = ""
     private var pendingRadius: Float = Place.DEFAULT_RADIUS_METERS
     private var editingId: String? = null
@@ -37,20 +45,10 @@ class PlacesActivity : AppCompatActivity() {
     ) { result ->
         if (result.resultCode == RESULT_OK) {
             val data = result.data ?: return@registerForActivityResult
-            val name = data.getStringExtra(LocationPickerActivity.EXTRA_LOCATION_NAME)
-                ?.ifBlank { pendingName } ?: pendingName
             val lat = data.getDoubleExtra(LocationPickerActivity.EXTRA_LATITUDE, 0.0)
             val lng = data.getDoubleExtra(LocationPickerActivity.EXTRA_LONGITUDE, 0.0)
-            val place = Place(
-                id = editingId ?: Place.newId(),
-                name = name.ifBlank { "Place" },
-                latitude = lat,
-                longitude = lng,
-                radiusMeters = pendingRadius
-            )
-            prefs.upsertPlace(place)
-            renderList()
-            Toast.makeText(this, "Saved ${place.name}", Toast.LENGTH_SHORT).show()
+            val address = data.getStringExtra(LocationPickerActivity.EXTRA_ADDRESS) ?: ""
+            savePlace(pendingName, lat, lng, address, pendingRadius, editingId)
         }
     }
 
@@ -71,7 +69,7 @@ class PlacesActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             )
-            setOnClickListener { showNameRadiusDialog(null) }
+            setOnClickListener { showPlaceDialog(null) }
         })
 
         listContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -81,9 +79,16 @@ class PlacesActivity : AppCompatActivity() {
         renderList()
     }
 
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
     override fun onSupportNavigateUp(): Boolean {
         finish(); return true
     }
+
+    // ── List rendering ──────────────────────────────────────────────────
 
     private fun renderList() {
         listContainer.removeAllViews()
@@ -111,11 +116,13 @@ class PlacesActivity : AppCompatActivity() {
                 textSize = 18f
                 setTextColor(getColor(R.color.on_primary_container))
             })
+            val subtitle = if (place.address.isNotBlank()) {
+                "${place.address}\n${formatCoords(place)} · radius ${place.radiusMeters.toInt()}m"
+            } else {
+                "${formatCoords(place)} · radius ${place.radiusMeters.toInt()}m"
+            }
             card.addView(TextView(this).apply {
-                text = String.format(
-                    "%.4f, %.4f · radius %dm",
-                    place.latitude, place.longitude, place.radiusMeters.toInt()
-                )
+                text = subtitle
                 setTextColor(getColor(R.color.on_primary_container))
             })
 
@@ -125,7 +132,7 @@ class PlacesActivity : AppCompatActivity() {
             }
             buttons.addView(Button(this).apply {
                 text = "Edit"
-                setOnClickListener { showNameRadiusDialog(place) }
+                setOnClickListener { showPlaceDialog(place) }
             })
             buttons.addView(Button(this).apply {
                 text = "Delete"
@@ -136,45 +143,261 @@ class PlacesActivity : AppCompatActivity() {
         }
     }
 
-    private fun showNameRadiusDialog(existing: Place?) {
+    private fun formatCoords(place: Place): String =
+        String.format("%.4f, %.4f", place.latitude, place.longitude)
+
+    // ── Main place dialog ───────────────────────────────────────────────
+
+    private fun showPlaceDialog(existing: Place?) {
         val pad = dp(16)
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, 0)
         }
+
+        container.addView(TextView(this).apply {
+            text = "Name"
+            textSize = 14f
+            setTextColor(getColor(R.color.text_secondary))
+        })
         val nameInput = EditText(this).apply {
-            hint = "Name (e.g. Truckee)"
+            hint = "e.g. Home, Work, Truckee"
             setText(existing?.name ?: "")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
         }
+        container.addView(nameInput)
+
+        container.addView(TextView(this).apply {
+            text = "Detection radius (meters)"
+            textSize = 14f
+            setPadding(0, dp(12), 0, 0)
+            setTextColor(getColor(R.color.text_secondary))
+        })
         val radiusInput = EditText(this).apply {
-            hint = "Detection radius (meters)"
+            hint = "500"
             setText(((existing?.radiusMeters ?: Place.DEFAULT_RADIUS_METERS).toInt()).toString())
             inputType = InputType.TYPE_CLASS_NUMBER
         }
-        container.addView(nameInput)
         container.addView(radiusInput)
 
-        AlertDialog.Builder(this)
+        container.addView(TextView(this).apply {
+            text = "Set location by:"
+            textSize = 14f
+            setPadding(0, dp(16), 0, dp(8))
+            setTextColor(getColor(R.color.text_secondary))
+        })
+
+        val btnRow1 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val mapBtn = Button(this).apply {
+            text = "Pick on map"
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val addrBtn = Button(this).apply {
+            text = "Street address"
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val coordsBtn = Button(this).apply {
+            text = "GPS coords"
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        btnRow1.addView(mapBtn)
+        btnRow1.addView(addrBtn)
+        btnRow1.addView(coordsBtn)
+        container.addView(btnRow1)
+
+        val dialog = AlertDialog.Builder(this)
             .setTitle(if (existing == null) "New Place" else "Edit ${existing.name}")
             .setView(container)
-            .setPositiveButton("Pick on map") { _, _ ->
-                pendingName = nameInput.text.toString().trim()
-                pendingRadius = radiusInput.text.toString().toFloatOrNull()
-                    ?: Place.DEFAULT_RADIUS_METERS
-                editingId = existing?.id
-                launchPicker(existing, pendingName)
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        fun validateName(): String? {
+            val name = nameInput.text.toString().trim()
+            if (name.isEmpty()) {
+                Toast.makeText(this, "Enter a name first", Toast.LENGTH_SHORT).show()
+                return null
+            }
+            return name
+        }
+
+        fun readRadius(): Float =
+            radiusInput.text.toString().toFloatOrNull() ?: Place.DEFAULT_RADIUS_METERS
+
+        mapBtn.setOnClickListener {
+            val name = validateName() ?: return@setOnClickListener
+            pendingName = name
+            pendingRadius = readRadius()
+            editingId = existing?.id
+            dialog.dismiss()
+            launchPicker(existing)
+        }
+
+        addrBtn.setOnClickListener {
+            val name = validateName() ?: return@setOnClickListener
+            dialog.dismiss()
+            showAddressDialog(name, readRadius(), existing?.id)
+        }
+
+        coordsBtn.setOnClickListener {
+            val name = validateName() ?: return@setOnClickListener
+            dialog.dismiss()
+            showCoordsDialog(name, readRadius(), existing)
+        }
+
+        dialog.show()
+    }
+
+    // ── Option 1: Pick on map ───────────────────────────────────────────
+
+    private fun launchPicker(existing: Place?) {
+        val intent = Intent(this, LocationPickerActivity::class.java).apply {
+            putExtra(LocationPickerActivity.EXTRA_TITLE,
+                if (existing == null) "Set location" else "Move ${existing.name}")
+        }
+        pickerLauncher.launch(intent)
+    }
+
+    // ── Option 2: Enter street address ──────────────────────────────────
+
+    private fun showAddressDialog(name: String, radius: Float, existingId: String?) {
+        val pad = dp(16)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+
+        container.addView(TextView(this).apply {
+            text = "Street address"
+            textSize = 14f
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        val addrInput = EditText(this).apply {
+            hint = "e.g. 205 South Sierra Street, Reno NV"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+        }
+        container.addView(addrInput)
+
+        AlertDialog.Builder(this)
+            .setTitle("Enter address for \"$name\"")
+            .setView(container)
+            .setPositiveButton("Look up") { _, _ ->
+                val addr = addrInput.text.toString().trim()
+                if (addr.isEmpty()) {
+                    Toast.makeText(this, "Enter an address", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                geocodeAddress(name, addr, radius, existingId)
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun launchPicker(existing: Place?, name: String) {
-        val intent = Intent(this, LocationPickerActivity::class.java).apply {
-            putExtra(LocationPickerActivity.EXTRA_TITLE, if (existing == null) "Set location" else "Move ${existing.name}")
-            putExtra(LocationPickerActivity.EXTRA_INITIAL_NAME, name)
+    private fun geocodeAddress(name: String, address: String, radius: Float, existingId: String?) {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    @Suppress("DEPRECATION")
+                    val geocoder = Geocoder(this@PlacesActivity, Locale.getDefault())
+                    val results = geocoder.getFromLocationName(address, 1)
+                    results?.firstOrNull()
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            if (result != null) {
+                val formattedAddr = buildString {
+                    result.getAddressLine(0)?.let { append(it) }
+                }
+                savePlace(name, result.latitude, result.longitude,
+                    formattedAddr.ifBlank { address }, radius, existingId)
+            } else {
+                Toast.makeText(this@PlacesActivity,
+                    "Could not find that address. Try a different spelling or use GPS coords.",
+                    Toast.LENGTH_LONG).show()
+            }
         }
-        pickerLauncher.launch(intent)
+    }
+
+    // ── Option 3: Enter GPS coordinates ─────────────────────────────────
+
+    private fun showCoordsDialog(name: String, radius: Float, existing: Place?) {
+        val pad = dp(16)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+
+        container.addView(TextView(this).apply {
+            text = "Latitude"
+            textSize = 14f
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        val latInput = EditText(this).apply {
+            hint = "e.g. 39.3280"
+            setText(if (existing != null) existing.latitude.toString() else "")
+            inputType = InputType.TYPE_CLASS_NUMBER or
+                InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+        }
+        container.addView(latInput)
+
+        container.addView(TextView(this).apply {
+            text = "Longitude"
+            textSize = 14f
+            setPadding(0, dp(8), 0, 0)
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        val lngInput = EditText(this).apply {
+            hint = "e.g. -120.1833"
+            setText(if (existing != null) existing.longitude.toString() else "")
+            inputType = InputType.TYPE_CLASS_NUMBER or
+                InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+        }
+        container.addView(lngInput)
+
+        AlertDialog.Builder(this)
+            .setTitle("GPS coordinates for \"$name\"")
+            .setView(container)
+            .setPositiveButton("Save") { _, _ ->
+                val lat = latInput.text.toString().toDoubleOrNull()
+                val lng = lngInput.text.toString().toDoubleOrNull()
+                if (lat == null || lng == null) {
+                    Toast.makeText(this, "Enter valid latitude and longitude", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                    Toast.makeText(this, "Coordinates out of range", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                savePlace(name, lat, lng, "", radius, existing?.id)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // ── Save + delete ───────────────────────────────────────────────────
+
+    private fun savePlace(
+        name: String, lat: Double, lng: Double,
+        address: String, radius: Float, existingId: String?
+    ) {
+        val place = Place(
+            id = existingId ?: Place.newId(),
+            name = name.ifBlank { "Place" },
+            latitude = lat,
+            longitude = lng,
+            radiusMeters = radius,
+            address = address
+        )
+        prefs.upsertPlace(place)
+        renderList()
+        Toast.makeText(this, "Saved ${place.name}", Toast.LENGTH_SHORT).show()
     }
 
     private fun confirmDelete(place: Place) {

@@ -12,7 +12,8 @@ data class Place(
     val name: String,
     val latitude: Double,
     val longitude: Double,
-    val radiusMeters: Float = DEFAULT_RADIUS_METERS
+    val radiusMeters: Float = DEFAULT_RADIUS_METERS,
+    val address: String = ""
 ) {
     fun toLatLng(): LatLng = LatLng(latitude, longitude)
 
