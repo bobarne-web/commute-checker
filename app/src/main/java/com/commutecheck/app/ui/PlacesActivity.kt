@@ -15,9 +15,12 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.view.WindowCompat
 import com.commutecheck.app.R
 import com.commutecheck.app.data.Place
 import com.commutecheck.app.data.PreferencesManager
+import com.google.android.material.appbar.MaterialToolbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,11 +57,31 @@ class PlacesActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         prefs = PreferencesManager(this)
-        supportActionBar?.title = "Places"
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.hide()
 
         val pad = dp(16)
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(getColor(R.color.background))
+        }
+
+        screen.addView(MaterialToolbar(this).apply {
+            title = "Places"
+            navigationIcon = AppCompatResources.getDrawable(
+                this@PlacesActivity,
+                androidx.appcompat.R.drawable.abc_ic_ab_back_material
+            )
+            setNavigationOnClickListener { finish() }
+            setTitleTextColor(getColor(R.color.text_primary))
+            setBackgroundColor(getColor(R.color.surface))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(56)
+            )
+        })
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -75,7 +98,16 @@ class PlacesActivity : AppCompatActivity() {
         listContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(listContainer)
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        screen.addView(ScrollView(this).apply {
+            addView(root)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        })
+
+        setContentView(screen)
         renderList()
     }
 

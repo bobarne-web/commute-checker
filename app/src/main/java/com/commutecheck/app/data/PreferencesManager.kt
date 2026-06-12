@@ -30,7 +30,16 @@ class PreferencesManager(context: Context) {
     fun getPlaces(): List<Place> {
         val json = prefs.getString(KEY_PLACES, null) ?: return emptyList()
         val type = object : TypeToken<List<Place>>() {}.type
-        return gson.fromJson(json, type) ?: emptyList()
+        val places: List<Place> = gson.fromJson(json, type) ?: emptyList()
+        return places.map { place ->
+            val name = (place.name as String?)?.takeIf { it.isNotBlank() } ?: "Place"
+            val address = (place.address as String?) ?: ""
+            if (name != place.name || address != place.address) {
+                place.copy(name = name, address = address)
+            } else {
+                place
+            }
+        }
     }
 
     fun savePlaces(places: List<Place>) {
