@@ -61,6 +61,14 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.btnUseCurrentLocation.setOnClickListener {
             useCurrentLocation()
         }
+
+        binding.btnZoomIn.setOnClickListener {
+            googleMap?.animateCamera(CameraUpdateFactory.zoomIn())
+        }
+
+        binding.btnZoomOut.setOnClickListener {
+            googleMap?.animateCamera(CameraUpdateFactory.zoomOut())
+        }
     }
 
     override fun onDestroy() {
