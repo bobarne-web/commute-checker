@@ -206,7 +206,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun formatResult(r: RouteCheckResult): String {
         if (r.hasError) return "• ${r.destinationName}: unavailable"
-        val status = if (r.isDelayed) "🔴 ${r.durationInTrafficText}  (+${r.delayMinutes} min)" else "🟢 ${r.durationInTrafficText}"
+        val distance = if (r.distanceText.isNotBlank()) " · ${r.distanceText}" else ""
+        val status = if (r.isDelayed) {
+            "🔴 ${r.durationInTrafficText}$distance  (+${r.delayMinutes} min)"
+        } else {
+            "🟢 ${r.durationInTrafficText}$distance"
+        }
         return "• ${r.destinationName}: $status"
     }
 
