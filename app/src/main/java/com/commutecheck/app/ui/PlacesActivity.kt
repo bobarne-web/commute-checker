@@ -1,5 +1,6 @@
 package com.commutecheck.app.ui
 
+import android.content.res.ColorStateList
 import android.content.Intent
 import android.location.Geocoder
 import android.os.Bundle
@@ -21,6 +22,7 @@ import com.commutecheck.app.R
 import com.commutecheck.app.data.Place
 import com.commutecheck.app.data.PreferencesManager
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -213,35 +215,26 @@ class PlacesActivity : AppCompatActivity() {
         container.addView(radiusInput)
 
         container.addView(TextView(this).apply {
-            text = "Set location by:"
+            text = "Set location by"
             textSize = 14f
-            setPadding(0, dp(16), 0, dp(8))
+            setPadding(0, dp(18), 0, dp(2))
             setTextColor(getColor(R.color.text_secondary))
         })
 
-        val btnRow1 = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        val methodButtons = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
 
-        val mapBtn = Button(this).apply {
-            text = "Pick on map"
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        val addrBtn = Button(this).apply {
-            text = "Street address"
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        val coordsBtn = Button(this).apply {
-            text = "GPS coords"
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        btnRow1.addView(mapBtn)
-        btnRow1.addView(addrBtn)
-        btnRow1.addView(coordsBtn)
-        container.addView(btnRow1)
+        val mapBtn = createLocationMethodButton("Pick on map")
+        val addrBtn = createLocationMethodButton("Street address")
+        val coordsBtn = createLocationMethodButton("GPS coordinates")
+        methodButtons.addView(mapBtn)
+        methodButtons.addView(addrBtn)
+        methodButtons.addView(coordsBtn)
+        container.addView(methodButtons)
 
         val dialog = AlertDialog.Builder(this)
             .setTitle(if (existing == null) "New Place" else "Edit ${existing.name}")
@@ -286,6 +279,23 @@ class PlacesActivity : AppCompatActivity() {
     }
 
     // ── Option 1: Pick on map ───────────────────────────────────────────
+
+    private fun createLocationMethodButton(label: String): MaterialButton =
+        MaterialButton(this).apply {
+            text = label
+            isAllCaps = false
+            gravity = Gravity.CENTER
+            minHeight = dp(48)
+            cornerRadius = dp(6)
+            backgroundTintList = ColorStateList.valueOf(getColor(R.color.primary_container))
+            setTextColor(getColor(R.color.on_primary_container))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(52)
+            ).apply {
+                topMargin = dp(8)
+            }
+        }
 
     private fun launchPicker(existing: Place?) {
         val intent = Intent(this, LocationPickerActivity::class.java).apply {
