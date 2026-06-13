@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -50,6 +51,8 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
+        installWheelZoomHandler(binding.map)
+        mapFragment.view?.let { installWheelZoomHandler(it) }
 
         binding.btnConfirmLocation.setOnClickListener {
             confirmLocation()
@@ -71,24 +74,12 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_SCROLL &&
-            event.isFromSource(InputDevice.SOURCE_CLASS_POINTER) &&
-            isPointInsideView(event.rawX.toInt(), event.rawY.toInt(), binding.map)
-        ) {
-            val scroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
-            if (scroll != 0f) {
-                googleMap?.animateCamera(
-                    CameraUpdateFactory.zoomBy(if (scroll > 0f) 1f else -1f)
-                )
-                return true
-            }
-        }
-
-        return super.dispatchGenericMotionEvent(event)
+        return handleWheelZoom(event) || super.dispatchGenericMotionEvent(event)
     }
 
     override fun onMapReady(map: GoogleMap) {
         googleMap = map
+        binding.map.post { installWheelZoomHandler(binding.map) }
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
             == PackageManager.PERMISSION_GRANTED
@@ -190,15 +181,31 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
         const val EXTRA_ADDRESS = "address"
     }
 
-    private fun isPointInsideView(rawX: Int, rawY: Int, view: View): Boolean {
-        val location = IntArray(2)
-        view.getLocationOnScreen(location)
-        val left = location[0]
-        val top = location[1]
-        return rawX >= left &&
-            rawX <= left + view.width &&
-            rawY >= top &&
-            rawY <= top + view.height
+    private fun installWheelZoomHandler(view: View) {
+        view.setOnGenericMotionListener { _, event -> handleWheelZoom(event) }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                installWheelZoomHandler(view.getChildAt(index))
+            }
+        }
+    }
+
+    private fun handleWheelZoom(event: MotionEvent): Boolean {
+        if (event.action != MotionEvent.ACTION_SCROLL ||
+            !event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)
+        ) {
+            return false
+        }
+
+        val scroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+        if (scroll == 0f) {
+            return false
+        }
+
+        googleMap?.animateCamera(
+            CameraUpdateFactory.zoomBy(if (scroll > 0f) 1f else -1f)
+        )
+        return true
     }
 
     @Suppress("DEPRECATION")
