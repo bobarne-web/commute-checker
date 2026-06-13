@@ -5,6 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.os.Bundle
+import android.view.InputDevice
+import android.view.MotionEvent
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -65,6 +68,23 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_SCROLL &&
+            event.isFromSource(InputDevice.SOURCE_CLASS_POINTER) &&
+            isPointInsideView(event.rawX.toInt(), event.rawY.toInt(), binding.map)
+        ) {
+            val scroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+            if (scroll != 0f) {
+                googleMap?.animateCamera(
+                    CameraUpdateFactory.zoomBy(if (scroll > 0f) 1f else -1f)
+                )
+                return true
+            }
+        }
+
+        return super.dispatchGenericMotionEvent(event)
     }
 
     override fun onMapReady(map: GoogleMap) {
@@ -168,6 +188,17 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
         const val EXTRA_LATITUDE = "latitude"
         const val EXTRA_LONGITUDE = "longitude"
         const val EXTRA_ADDRESS = "address"
+    }
+
+    private fun isPointInsideView(rawX: Int, rawY: Int, view: View): Boolean {
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        val left = location[0]
+        val top = location[1]
+        return rawX >= left &&
+            rawX <= left + view.width &&
+            rawY >= top &&
+            rawY <= top + view.height
     }
 
     @Suppress("DEPRECATION")
