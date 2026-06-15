@@ -69,6 +69,7 @@ class CommuteEngine(private val context: Context) {
         }
 
         if (activeWatches.isEmpty()) {
+            prefs.saveLastResults(currentPlace?.name ?: "On the road", emptyList())
             return EngineResult.Success(currentPlace?.name, emptyList())
         }
 

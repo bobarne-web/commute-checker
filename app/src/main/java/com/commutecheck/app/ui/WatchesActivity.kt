@@ -10,9 +10,12 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.view.WindowCompat
 import com.commutecheck.app.R
 import com.commutecheck.app.data.PreferencesManager
 import com.commutecheck.app.data.Watch
+import com.google.android.material.appbar.MaterialToolbar
 import java.util.Calendar
 
 /**
@@ -26,11 +29,32 @@ class WatchesActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         prefs = PreferencesManager(this)
-        supportActionBar?.title = "Commute Watches"
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.hide()
 
         val pad = dp(16)
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(getColor(R.color.background))
+        }
+
+        screen.addView(MaterialToolbar(this).apply {
+            title = "Commute Watches"
+            navigationIcon = AppCompatResources.getDrawable(
+                this@WatchesActivity,
+                androidx.appcompat.R.drawable.abc_ic_ab_back_material
+            )
+            setPadding(0, statusBarHeight(), 0, 0)
+            setNavigationOnClickListener { finish() }
+            setTitleTextColor(getColor(R.color.text_primary))
+            setBackgroundColor(getColor(R.color.surface))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(56) + statusBarHeight()
+            )
+        })
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -47,7 +71,16 @@ class WatchesActivity : AppCompatActivity() {
         listContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(listContainer)
 
-        setContentView(ScrollView(this).apply { addView(root) })
+        screen.addView(ScrollView(this).apply {
+            addView(root)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        })
+
+        setContentView(screen)
     }
 
     override fun onResume() {
@@ -178,4 +211,9 @@ class WatchesActivity : AppCompatActivity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun statusBarHeight(): Int {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else 0
+    }
 }

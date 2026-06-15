@@ -17,10 +17,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import com.commutecheck.app.R
 import com.commutecheck.app.data.PreferencesManager
 import com.commutecheck.app.data.RouteCheckResult
-import com.commutecheck.app.service.CommuteCheckService
+import com.commutecheck.app.domain.CommuteEngine
+import com.commutecheck.app.notification.NotificationHelper
+import com.google.android.material.appbar.MaterialToolbar
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -55,9 +60,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         prefsManager = PreferencesManager(this)
+        supportActionBar?.hide()
         setContentView(buildLayout())
-        supportActionBar?.title = getString(R.string.app_name)
         requestPermissions()
     }
 
@@ -68,6 +74,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildLayout(): View {
         val pad = dp(16)
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(getColor(R.color.background))
+        }
+
+        screen.addView(MaterialToolbar(this).apply {
+            title = getString(R.string.app_name)
+            setPadding(0, statusBarHeight(), 0, 0)
+            setTitleTextColor(getColor(R.color.text_primary))
+            setBackgroundColor(getColor(R.color.surface))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(56) + statusBarHeight()
+            )
+        })
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -136,7 +158,16 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(summaryView)
 
-        return ScrollView(this).apply { addView(root) }
+        screen.addView(ScrollView(this).apply {
+            addView(root)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        })
+
+        return screen
     }
 
     private fun primaryButton(label: String, onClick: () -> Unit): Button {
@@ -155,11 +186,44 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Add at least one place and one watch first", Toast.LENGTH_LONG).show()
             return
         }
-        val intent = Intent(this, CommuteCheckService::class.java).apply {
-            action = CommuteCheckService.ACTION_CHECK_COMMUTE
+        if (!hasLocationPermission()) {
+            Toast.makeText(this, "Location permission is required", Toast.LENGTH_LONG).show()
+            requestPermissions()
+            return
         }
-        startForegroundService(intent)
+
+        summaryView.text = "Running commute check..."
         Toast.makeText(this, "Running commute check...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch {
+            when (val result = CommuteEngine(this@MainActivity).runChecks()) {
+                is CommuteEngine.EngineResult.Success -> {
+                    val notificationHelper = NotificationHelper(this@MainActivity)
+                    updateUI()
+                    if (result.results.isEmpty()) {
+                        notificationHelper.showSkippedNotification(
+                            "No commute checks scheduled for right now"
+                        )
+                        Toast.makeText(
+                            this@MainActivity,
+                            "No active watches matched right now",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } else {
+                        notificationHelper.showResultsNotification(
+                            result.currentPlaceName,
+                            result.results
+                        )
+                        Toast.makeText(this@MainActivity, "Commute check complete", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                is CommuteEngine.EngineResult.Failure -> {
+                    NotificationHelper(this@MainActivity).showErrorNotification(result.message)
+                    summaryView.text = "Could not run check:\n${result.message}"
+                    Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun updateUI() {
@@ -189,6 +253,16 @@ class MainActivity : AppCompatActivity() {
     private fun buildSummary(): String {
         val results = prefsManager.getLastResults()
         if (results.isEmpty()) {
+            val place = prefsManager.getLastResultsPlace()
+            val time = prefsManager.getLastResultsTime()
+            if (time > 0) {
+                val header = buildString {
+                    if (place.isNotEmpty()) append("From $place")
+                    if (isNotEmpty()) append(" · ")
+                    append(DateUtils.getRelativeTimeSpanString(time))
+                }
+                return "$header\n\nNo active watches matched for right now."
+            }
             return "No checks yet. Tap \"${getString(R.string.test_check)}\" to try it now."
         }
         val place = prefsManager.getLastResultsPlace()
@@ -255,4 +329,9 @@ class MainActivity : AppCompatActivity() {
             PackageManager.PERMISSION_GRANTED
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun statusBarHeight(): Int {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else 0
+    }
 }

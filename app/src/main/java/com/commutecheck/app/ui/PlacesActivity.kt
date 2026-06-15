@@ -75,12 +75,13 @@ class PlacesActivity : AppCompatActivity() {
                 this@PlacesActivity,
                 androidx.appcompat.R.drawable.abc_ic_ab_back_material
             )
+            setPadding(0, statusBarHeight(), 0, 0)
             setNavigationOnClickListener { finish() }
             setTitleTextColor(getColor(R.color.text_primary))
             setBackgroundColor(getColor(R.color.surface))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(56)
+                dp(56) + statusBarHeight()
             )
         })
 
@@ -455,4 +456,9 @@ class PlacesActivity : AppCompatActivity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun statusBarHeight(): Int {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else 0
+    }
 }
