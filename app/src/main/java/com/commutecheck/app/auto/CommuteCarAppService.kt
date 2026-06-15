@@ -9,6 +9,8 @@ import androidx.car.app.validation.HostValidator
 class CommuteCarAppService : CarAppService() {
 
     override fun createHostValidator(): HostValidator {
+        // Allow all hosts for development. In production, this should be restricted
+        // to specific hosts for security.
         return HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
     }
 

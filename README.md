@@ -38,6 +38,7 @@ An Android app for Galaxy S25 Ultra that automatically checks travel times when 
 - Android Studio Hedgehog or later
 - Google Maps API key with **Directions API** + **Maps SDK for Android** enabled
 - Galaxy S25 Ultra (or any Android 10+ device)
+- Android Auto compatible vehicle or head unit
 
 ### Google Maps API Key
 
@@ -62,6 +63,28 @@ The APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 ```bash
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
+
+## Android Auto Testing
+
+For development and testing with sideloaded APKs, you need to enable **Unknown Sources** in Android Auto:
+
+1. Enable Developer Mode in Android Auto:
+   - Open Android Auto on your phone
+   - Go to Settings > About
+   - Tap "Version" 10 times to enable Developer Mode
+   - Go back to Settings and you'll see "Developer settings"
+
+2. Enable Unknown Sources:
+   - In Developer settings, enable "Unknown sources"
+   - This allows sideloaded/debug apps to appear in Android Auto
+
+3. Testing the App:
+   - Connect your phone to your car via USB
+   - The app should appear in Android Auto
+   - Use the "Test Commute Check Now" button in the phone app to trigger notifications
+   - Notifications should appear both on your phone and on the car display
+
+**Note**: The app uses a template surface for the car dashboard and notifications for travel time alerts. For production deployment, the app would need to be published to the Play Store as Android Auto only officially supports apps from the store for the launcher.
 
 ## Configuration
 

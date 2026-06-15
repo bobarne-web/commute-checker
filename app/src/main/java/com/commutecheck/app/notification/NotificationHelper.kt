@@ -48,6 +48,8 @@ class NotificationHelper(private val context: Context) {
         ).apply {
             description = "Shows travel time estimates for your commute"
             enableVibration(true)
+            // Set category for better Android Auto compatibility
+            setSound(null, null)
         }
 
         notificationManager.createNotificationChannel(serviceChannel)
@@ -105,6 +107,7 @@ class NotificationHelper(private val context: Context) {
             .setContentText(if (anyDelayed) "Delays detected — tap for details" else body)
             .setStyle(inboxStyle)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            
             .setColor(context.getColor(if (anyDelayed) R.color.delay_red else R.color.delay_green))
             .setColorized(true)
             .setContentIntent(pendingIntent)
@@ -114,6 +117,8 @@ class NotificationHelper(private val context: Context) {
                     .setContentTitle(title)
                     .setContentText(body)
                     .setImportance(NotificationManager.IMPORTANCE_HIGH)
+                    // Set category for navigation/travel for better Android Auto handling
+                    
                     .build()
             )
 

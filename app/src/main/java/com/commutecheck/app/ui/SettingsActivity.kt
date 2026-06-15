@@ -10,6 +10,9 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.core.view.WindowCompat
+import com.google.android.material.appbar.MaterialToolbar
 import com.commutecheck.app.BuildConfig
 import com.commutecheck.app.R
 import com.commutecheck.app.data.PreferencesManager
@@ -27,17 +30,34 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = PreferencesManager(this)
-        supportActionBar?.title = getString(R.string.settings_title)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        setContentView(buildLayout())
-    }
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        supportActionBar?.hide()
 
-    override fun onSupportNavigateUp(): Boolean {
-        finish(); return true
+        setContentView(buildLayout())
     }
 
     private fun buildLayout(): View {
         val pad = dp(16)
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(getColor(R.color.background))
+        }
+
+        screen.addView(MaterialToolbar(this).apply {
+            title = getString(R.string.settings_title)
+            navigationIcon = AppCompatResources.getDrawable(
+                this@SettingsActivity,
+                androidx.appcompat.R.drawable.abc_ic_ab_back_material
+            )
+            setPadding(0, statusBarHeight(), 0, 0)
+            setNavigationOnClickListener { finish() }
+            setTitleTextColor(getColor(R.color.text_primary))
+            setBackgroundColor(getColor(R.color.surface))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(56) + statusBarHeight()
+            )
+        })
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -85,7 +105,8 @@ class SettingsActivity : AppCompatActivity() {
             setOnClickListener { save() }
         })
 
-        return ScrollView(this).apply { addView(root) }
+        screen.addView(ScrollView(this).apply { addView(root) })
+        return screen
     }
 
     private fun save() {
@@ -102,6 +123,11 @@ class SettingsActivity : AppCompatActivity() {
         textSize = 16f
         setPadding(0, dp(16), 0, dp(4))
         setTextColor(getColor(R.color.text_primary))
+    }
+
+    private fun statusBarHeight(): Int {
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else 0
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

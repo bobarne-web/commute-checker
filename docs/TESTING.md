@@ -83,9 +83,18 @@ A car-head-unit window opens.
 
 ### 4. Open Commute Checker on the car screen
 1. In the DHU, open the **app launcher** (grid icon).
-2. Our app is a **POI** category app, so it appears in the launcher. Tap **Commute Checker**.
+2. Our app should appear in the launcher (requires "Unknown sources" enabled in Android Auto developer settings). Tap **Commute Checker**.
 3. You'll see the color-coded route list — green for on-time, red with `+X min` for delayed — plus a **Refresh** button.
 4. Change the emulator's GPS location (Extended controls → Location) and tap **Refresh** to see the routes recompute from the new origin.
+
+### Android Auto Implementation Notes
+
+The app uses a **template surface** for the car dashboard and **notifications** for travel time alerts. The app does not specify a category (e.g., POI, Navigation) since it's a utility app that doesn't fit neatly into Android Auto's approved categories. This approach:
+
+- Allows the app to provide a full car-screen dashboard via the template surface
+- Ensures notifications appear reliably on both phone and car display
+- Works for development/testing with "Unknown sources" enabled
+- For production, would need Play Store publication for official launcher support
 
 ### Troubleshooting
 - **App not in the DHU launcher** → make sure **Unknown sources** is on in Android Auto developer settings, and that the app installed successfully.
