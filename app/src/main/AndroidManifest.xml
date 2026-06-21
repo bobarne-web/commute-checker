@@ -112,6 +112,11 @@
             </intent-filter>
         </service>
 
+        <!-- Android Auto notification listener -->
+        <meta-data
+            android:name="androidx.car.app.notification.CarAppExtender"
+            android:value="true" />
+
         <!-- Android Auto descriptor -->
         <meta-data
             android:name="com.google.android.gms.car.application"

@@ -87,6 +87,18 @@ A car-head-unit window opens.
 3. You'll see the color-coded route list — green for on-time, red with `+X min` for delayed — plus a **Refresh** button.
 4. Change the emulator's GPS location (Extended controls → Location) and tap **Refresh** to see the routes recompute from the new origin.
 
+### Important: Physical Car Testing Limitations
+
+**Apps will NOT appear in physical car launchers when sideloaded.** Android Auto requires apps to be distributed through:
+- Google Play Store (production)
+- Internal App Sharing (for testing)
+- Internal Test Track (for testing)
+
+This is a security restriction by Google. However, **notifications will still work** on physical cars even if the launcher doesn't show the app. To test notifications:
+1. Use the "Test Commute Check Now" button in the phone app
+2. Verify notifications appear on your phone
+3. When connected to Android Auto, notifications should also appear on the car display
+
 ### Android Auto Implementation Notes
 
 The app uses a **template surface** for the car dashboard and **notifications** for travel time alerts. The app does not specify a category (e.g., POI, Navigation) since it's a utility app that doesn't fit neatly into Android Auto's approved categories. This approach:
@@ -98,6 +110,8 @@ The app uses a **template surface** for the car dashboard and **notifications** 
 
 ### Troubleshooting
 - **App not in the DHU launcher** → make sure **Unknown sources** is on in Android Auto developer settings, and that the app installed successfully.
+- **App not in physical car launcher** → This is expected for sideloaded apps. Android Auto requires Play Store distribution for launcher visibility. Use Internal App Sharing for testing.
+- **Notifications not showing on car** → Check notification permissions and ensure the app is allowed to show notifications. Test with "Test Commute Check Now" button.
 - **DHU won't connect** → re-run `adb forward tcp:5277 tcp:5277`, confirm `adb devices` lists the emulator, and that you tapped **Start head unit server**.
 - **Blank map / no travel times** → API key restriction (set Application restrictions = None while testing) or the Directions/Maps APIs aren't enabled.
 - **Android Auto refuses to run on the emulator** → this is the finicky part; the 100% reliable path is the DHU against a **physical phone** with Android Auto in developer mode. Same DHU steps, just skip the Play-Store-on-emulator part.

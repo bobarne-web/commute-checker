@@ -66,7 +66,11 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ## Android Auto Testing
 
-For development and testing with sideloaded APKs, you need to enable **Unknown Sources** in Android Auto:
+**Important:** For apps to appear in the Android Auto launcher on physical car displays, they must be distributed through Google Play Store (or Internal App Sharing/Internal Test Track). Sideloaded/debug apps typically won't appear in real vehicle launchers due to Android Auto security restrictions.
+
+#### For Development Testing (Desktop Head Unit):
+
+For development with the Android Auto Desktop Head Unit (DHU) emulator, you need to enable **Unknown Sources**:
 
 1. Enable Developer Mode in Android Auto:
    - Open Android Auto on your phone
@@ -76,15 +80,21 @@ For development and testing with sideloaded APKs, you need to enable **Unknown S
 
 2. Enable Unknown Sources:
    - In Developer settings, enable "Unknown sources"
-   - This allows sideloaded/debug apps to appear in Android Auto
+   - This allows sideloaded/debug apps to appear in the DHU emulator
 
-3. Testing the App:
-   - Connect your phone to your car via USB
-   - The app should appear in Android Auto
-   - Use the "Test Commute Check Now" button in the phone app to trigger notifications
-   - Notifications should appear both on your phone and on the car display
+3. Testing with DHU:
+   - Install the Android Auto Desktop Head Unit from SDK Manager
+   - Run `adb forward tcp:5277 tcp:5277`
+   - Launch the DHU and test the app
 
-**Note**: The app uses a template surface for the car dashboard and notifications for travel time alerts. For production deployment, the app would need to be published to the Play Store as Android Auto only officially supports apps from the store for the launcher.
+#### For Physical Car Testing:
+
+To test in a real vehicle, the app needs to be distributed through:
+- **Google Play Store** (production)
+- **Internal App Sharing** (for testing)
+- **Internal Test Track** (for testing)
+
+**Notifications** will work on physical cars even if the launcher doesn't show the app. Use the "Test Commute Check Now" button to verify notification delivery to both phone and car display.
 
 ## Configuration
 
