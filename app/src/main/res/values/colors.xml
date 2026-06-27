@@ -11,6 +11,6 @@
     <color name="primary_container">#EADDFF</color>
     <color name="on_primary_container">#21005D</color>
     <color name="surface">#FFFBFE</color>
-    <color name="delay_green">#1B7A3D</color>
-    <color name="delay_red">#C5221F</color>
+    <color name="travel_time_clear">#FFFFFF</color>
+    <color name="travel_time_delayed">#FF4081</color>
 </resources>

@@ -12,6 +12,7 @@ import androidx.car.app.model.Row
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import android.graphics.Color
 import com.commutecheck.app.data.PreferencesManager
 import com.commutecheck.app.data.RouteCheckResult
 import com.commutecheck.app.domain.CommuteEngine
@@ -23,10 +24,15 @@ import kotlinx.coroutines.launch
 
 /**
  * Android Auto car screen. Shows a color-coded dashboard of all relevant commute
- * times for the current location/time — green when clear, red (with delay minutes)
- * when traffic exceeds the configured threshold.
+ * times for the current location/time.
  */
 class CommuteScreen(carContext: CarContext) : Screen(carContext) {
+
+    private val normalTravelTimeColor = CarColor.createCustom(Color.WHITE, Color.WHITE)
+    private val abnormalTravelTimeColor = CarColor.createCustom(
+        Color.rgb(255, 64, 129),
+        Color.rgb(255, 64, 129)
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val prefs = PreferencesManager(carContext)
@@ -108,16 +114,18 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         }
 
-        val color = if (result.isDelayed) CarColor.RED else CarColor.GREEN
+        val color = if (result.isDelayed) abnormalTravelTimeColor else normalTravelTimeColor
         val statusLabel = if (result.isDelayed) {
-            "${result.durationInTrafficText}  (+${result.delayMinutes} min delay)"
+            "DELAY  +${result.delayMinutes} min"
         } else {
-            "${result.durationInTrafficText}  (on time)"
+            "ON TIME"
         }
 
-        val builder = Row.Builder().setTitle(result.destinationName)
+        val builder = Row.Builder().setTitle(
+            "${result.destinationName}  ${result.durationInTrafficText}"
+        )
 
-        // Color the status string green/red on the car screen.
+        // Keep normal travel neutral and make abnormal delays pop on the car screen.
         val span = ForegroundCarColorSpan.create(color)
         val styled = android.text.SpannableString(statusLabel)
         styled.setSpan(span, 0, statusLabel.length, android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE)

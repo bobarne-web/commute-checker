@@ -4,20 +4,31 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
+import androidx.car.app.notification.CarPendingIntent
 import androidx.car.app.notification.CarAppExtender
 import androidx.car.app.notification.CarNotificationManager
+import androidx.car.app.model.CarColor
 import androidx.core.app.NotificationCompat
 import com.commutecheck.app.R
+import com.commutecheck.app.auto.CommuteCarAppService
 import com.commutecheck.app.data.RouteCheckResult
 import com.commutecheck.app.ui.MainActivity
 
 class NotificationHelper(private val context: Context) {
 
+    private val normalTravelTimeColor = CarColor.createCustom(Color.WHITE, Color.WHITE)
+    private val abnormalTravelTimeColor = CarColor.createCustom(
+        Color.rgb(255, 64, 129),
+        Color.rgb(255, 64, 129)
+    )
+
     companion object {
         const val CHANNEL_SERVICE = "commute_checker_service"
-        const val CHANNEL_TRAVEL_TIME = "commute_checker_travel_time"
+        const val CHANNEL_TRAVEL_TIME = "commute_checker_travel_time_v2"
         const val NOTIFICATION_SERVICE_ID = 1001
         const val NOTIFICATION_TRAVEL_TIME_ID = 1002
     }
@@ -97,6 +108,7 @@ class NotificationHelper(private val context: Context) {
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val carPendingIntent = createCarAppPendingIntent()
 
         val inboxStyle = NotificationCompat.InboxStyle().setBigContentTitle(title)
         lines.forEach { inboxStyle.addLine(it) }
@@ -107,18 +119,20 @@ class NotificationHelper(private val context: Context) {
             .setContentText(if (anyDelayed) "Delays detected — tap for details" else body)
             .setStyle(inboxStyle)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            
-            .setColor(context.getColor(if (anyDelayed) R.color.delay_red else R.color.delay_green))
-            .setColorized(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(context.getColor(if (anyDelayed) R.color.travel_time_delayed else R.color.travel_time_clear))
+            .setColorized(anyDelayed)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .extend(
                 CarAppExtender.Builder()
                     .setContentTitle(title)
                     .setContentText(body)
+                    .setContentIntent(carPendingIntent)
                     .setImportance(NotificationManager.IMPORTANCE_HIGH)
-                    // Set category for navigation/travel for better Android Auto handling
-                    
+                    .setColor(if (anyDelayed) abnormalTravelTimeColor else normalTravelTimeColor)
                     .build()
             )
 
@@ -134,11 +148,23 @@ class NotificationHelper(private val context: Context) {
             append(": ")
             append(result.durationInTrafficText)
             if (result.isDelayed) {
-                append("  🔴 +${result.delayMinutes} min")
+                append("  DELAY +${result.delayMinutes} min")
             } else {
-                append("  🟢")
+                append("  ON TIME")
             }
         }
+    }
+
+    private fun createCarAppPendingIntent(): PendingIntent {
+        val carIntent = Intent(Intent.ACTION_VIEW).setComponent(
+            ComponentName(context, CommuteCarAppService::class.java)
+        )
+        return CarPendingIntent.getCarApp(
+            context,
+            0,
+            carIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
 
     fun showSkippedNotification(reason: String) {

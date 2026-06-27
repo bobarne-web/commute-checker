@@ -13,8 +13,8 @@ android {
         applicationId = "com.commutecheck.app"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         // Read MAPS_API_KEY from local.properties, gradle property (-P), or fall back to empty
         val localProps = Properties()
