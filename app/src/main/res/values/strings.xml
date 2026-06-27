@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Commute Checker</string>
+    <string name="app_subtitle">Auto-check travel times when you connect to Android Auto</string>
+    <string name="settings_title">Settings</string>
+    <string name="enabled">Enabled</string>
+    <string name="locations">Locations</string>
+    <string name="home_label">Home:</string>
+    <string name="work_label">Work:</string>
+    <string name="home_location">Home Location</string>
+    <string name="work_location">Work Location</string>
+    <string name="set_home_location">Set Home Location</string>
+    <string name="set_work_location">Set Work Location</string>
+    <string name="schedule">Schedule</string>
+    <string name="home_to_work_schedule">Home → Work Schedule</string>
+    <string name="schedule_description">Only check travel time to work on these days and within this time window. Since you rarely go to work, this prevents unnecessary checks.</string>
+    <string name="active_days">Active Days</string>
+    <string name="time_window">Time Window</string>
+    <string name="from_label">From</string>
+    <string name="to_label">To</string>
+    <string name="work_to_home">Work → Home</string>
+    <string name="always_check">Always Check</string>
+    <string name="always_check_description">Check travel time home whenever you plug in at work, regardless of day or time</string>
+    <string name="detection_radius">Detection Radius</string>
+    <string name="radius_description">How close you need to be to your saved location to be considered \"at\" that location</string>
+    <string name="radius_format">%d meters</string>
+    <string name="api_key_section">Google Maps API Key</string>
+    <string name="api_key_description">Required for travel time lookups. Get one from the Google Cloud Console with Directions API enabled.</string>
+    <string name="api_key_hint">Enter API Key</string>
+    <string name="save">Save</string>
+    <string name="not_set">Not set</string>
+    <string name="location_not_set">Not configured</string>
+    <string name="location_set_format">%s</string>
+    <string name="test_check">Test Commute Check Now</string>
+    <string name="pick_location">Pick Location</string>
+    <string name="tap_map_to_select">Tap the map to select a location</string>
+    <string name="location_name_hint">Location Name</string>
+    <string name="use_current">Use Current</string>
+    <string name="confirm">Confirm</string>
+    <string name="coordinates_format" formatted="false">%.4f, %.4f</string>
+    <string name="sun">Sun</string>
+    <string name="mon">Mon</string>
+    <string name="tue">Tue</string>
+    <string name="wed">Wed</string>
+    <string name="thu">Thu</string>
+    <string name="fri">Fri</string>
+    <string name="sat">Sat</string>
+</resources>
