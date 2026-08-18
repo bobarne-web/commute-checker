@@ -11,6 +11,12 @@
     <color name="primary_container">#EADDFF</color>
     <color name="on_primary_container">#21005D</color>
     <color name="surface">#FFFBFE</color>
+    <color name="surface_variant">#E7E0EC</color>
     <color name="travel_time_clear">#FFFFFF</color>
     <color name="travel_time_delayed">#FF4081</color>
+    <color name="delay_on_time">#1B7A3D</color>
+    <color name="delay_late">#B00020</color>
+    <color name="on_delay_badge">#FFFFFF</color>
+    <color name="on_warning_badge">#FFFFFF</color>
+    <color name="day_toggle_off">#E6E1E5</color>
 </resources>

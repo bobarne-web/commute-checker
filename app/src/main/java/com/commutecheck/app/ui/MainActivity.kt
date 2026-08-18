@@ -3,6 +3,7 @@ package com.commutecheck.app.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.text.format.DateUtils
@@ -14,6 +15,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
@@ -23,6 +25,7 @@ import com.commutecheck.app.R
 import com.commutecheck.app.data.PreferencesManager
 import com.commutecheck.app.data.RouteCheckResult
 import com.commutecheck.app.domain.CommuteEngine
+import com.commutecheck.app.domain.DelayMath
 import com.commutecheck.app.notification.NotificationHelper
 import com.google.android.material.appbar.MaterialToolbar
 import kotlinx.coroutines.launch
@@ -33,7 +36,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var statusView: TextView
     private lateinit var enableSwitch: SwitchCompat
-    private lateinit var summaryView: TextView
+    private lateinit var resultsHeader: TextView
+    private lateinit var resultsContainer: LinearLayout
+    private lateinit var backgroundLocationBanner: LinearLayout
     private lateinit var placesButton: Button
     private lateinit var watchesButton: Button
 
@@ -42,17 +47,17 @@ class MainActivity : AppCompatActivity() {
     ) { permissions ->
         val granted = (permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false) ||
             (permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false)
-        if (granted) requestBackgroundLocationIfNeeded()
-        else Toast.makeText(this, "Location permission is required", Toast.LENGTH_LONG).show()
+        if (!granted) {
+            Toast.makeText(this, "Location permission is required", Toast.LENGTH_LONG).show()
+        } else {
+            requestNotificationPermissionIfNeeded()
+        }
         updateUI()
     }
 
     private val backgroundLocationLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) {
-        requestNotificationPermissionIfNeeded()
-        updateUI()
-    }
+    ) { updateUI() }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -63,12 +68,25 @@ class MainActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         prefsManager = PreferencesManager(this)
         supportActionBar?.hide()
+
+        if (prefsManager.needsSetup()) {
+            startActivity(Intent(this, SetupActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(buildLayout())
-        requestPermissions()
+        requestForegroundPermissions()
     }
 
     override fun onResume() {
         super.onResume()
+        if (!::statusView.isInitialized) return
+        if (prefsManager.needsSetup()) {
+            startActivity(Intent(this, SetupActivity::class.java))
+            finish()
+            return
+        }
         updateUI()
     }
 
@@ -101,7 +119,6 @@ class MainActivity : AppCompatActivity() {
             setTextColor(getColor(R.color.text_secondary))
         })
 
-        // Enable row
         val enableRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -127,6 +144,26 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(statusView)
 
+        backgroundLocationBanner = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setBackgroundColor(getColor(R.color.primary_container))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(12) }
+        }
+        backgroundLocationBanner.addView(TextView(this).apply {
+            text = getString(R.string.background_location_banner)
+            setTextColor(getColor(R.color.on_primary_container))
+        })
+        backgroundLocationBanner.addView(Button(this).apply {
+            text = getString(R.string.background_location_allow)
+            setOnClickListener { explainAndRequestBackgroundLocation() }
+        })
+        root.addView(backgroundLocationBanner)
+
         placesButton = primaryButton("Manage Places") {
             startActivity(Intent(this, PlacesActivity::class.java))
         }
@@ -145,18 +182,18 @@ class MainActivity : AppCompatActivity() {
             runTestCheck()
         })
 
-        root.addView(TextView(this).apply {
-            text = "Latest results"
+        resultsHeader = TextView(this).apply {
+            text = getString(R.string.latest_results)
             textSize = 18f
             setPadding(0, dp(24), 0, dp(8))
             setTextColor(getColor(R.color.text_primary))
-        })
-
-        summaryView = TextView(this).apply {
-            textSize = 15f
-            setTextColor(getColor(R.color.text_secondary))
         }
-        root.addView(summaryView)
+        root.addView(resultsHeader)
+
+        resultsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        root.addView(resultsContainer)
 
         screen.addView(ScrollView(this).apply {
             addView(root)
@@ -188,11 +225,13 @@ class MainActivity : AppCompatActivity() {
         }
         if (!hasLocationPermission()) {
             Toast.makeText(this, "Location permission is required", Toast.LENGTH_LONG).show()
-            requestPermissions()
+            requestForegroundPermissions()
             return
         }
 
-        summaryView.text = "Running commute check..."
+        resultsHeader.text = getString(R.string.latest_results)
+        resultsContainer.removeAllViews()
+        resultsContainer.addView(messageView("Running commute check..."))
         Toast.makeText(this, "Running commute check...", Toast.LENGTH_SHORT).show()
 
         lifecycleScope.launch {
@@ -219,7 +258,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 is CommuteEngine.EngineResult.Failure -> {
                     NotificationHelper(this@MainActivity).showErrorNotification(result.message)
-                    summaryView.text = "Could not run check:\n${result.message}"
+                    resultsContainer.removeAllViews()
+                    resultsContainer.addView(messageView("Could not run check:\n${result.message}"))
                     Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
                 }
             }
@@ -247,26 +287,20 @@ class MainActivity : AppCompatActivity() {
         statusView.text = statusText
         statusView.setTextColor(getColor(statusColor))
 
-        summaryView.text = buildSummary()
+        val needsBackground = isEnabled &&
+            prefsManager.isConfigured() &&
+            !hasBackgroundLocationPermission()
+        backgroundLocationBanner.visibility = if (needsBackground) View.VISIBLE else View.GONE
+
+        renderResults()
     }
 
-    private fun buildSummary(): String {
+    private fun renderResults() {
+        resultsContainer.removeAllViews()
         val results = prefsManager.getLastResults()
-        if (results.isEmpty()) {
-            val place = prefsManager.getLastResultsPlace()
-            val time = prefsManager.getLastResultsTime()
-            if (time > 0) {
-                val header = buildString {
-                    if (place.isNotEmpty()) append("From $place")
-                    if (isNotEmpty()) append(" · ")
-                    append(DateUtils.getRelativeTimeSpanString(time))
-                }
-                return "$header\n\nNo active watches matched for right now."
-            }
-            return "No checks yet. Tap \"${getString(R.string.test_check)}\" to try it now."
-        }
         val place = prefsManager.getLastResultsPlace()
         val time = prefsManager.getLastResultsTime()
+
         val header = buildString {
             if (place.isNotEmpty()) append("From $place")
             if (time > 0) {
@@ -274,24 +308,110 @@ class MainActivity : AppCompatActivity() {
                 append(DateUtils.getRelativeTimeSpanString(time))
             }
         }
-        val lines = results.joinToString("\n") { formatResult(it) }
-        return if (header.isNotEmpty()) "$header\n\n$lines" else lines
-    }
-
-    private fun formatResult(r: RouteCheckResult): String {
-        if (r.hasError) return "• ${r.destinationName}: unavailable"
-        val distance = if (r.distanceText.isNotBlank()) " · ${r.distanceText}" else ""
-        val status = if (r.isDelayed) {
-            "🔴 ${r.durationInTrafficText}$distance  (+${r.delayMinutes} min)"
+        resultsHeader.text = if (header.isNotEmpty()) {
+            "${getString(R.string.latest_results)}\n$header"
         } else {
-            "🟢 ${r.durationInTrafficText}$distance"
+            getString(R.string.latest_results)
         }
-        return "• ${r.destinationName}: $status"
+
+        if (results.isEmpty()) {
+            val empty = if (time > 0) {
+                "No active watches matched for right now."
+            } else {
+                "No checks yet. Tap \"${getString(R.string.test_check)}\" to try it now."
+            }
+            resultsContainer.addView(messageView(empty))
+            return
+        }
+
+        results.forEach { resultsContainer.addView(resultCard(it)) }
     }
 
-    // --- Permissions ---
+    private fun resultCard(result: RouteCheckResult): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+            setBackgroundColor(getColor(R.color.surface_variant))
+        }
 
-    private fun requestPermissions() {
+        val titleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        titleRow.addView(TextView(this).apply {
+            text = result.destinationName
+            textSize = 17f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(getColor(R.color.text_primary))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        if (!result.hasError && result.durationInTrafficText.isNotEmpty()) {
+            titleRow.addView(TextView(this).apply {
+                text = result.durationInTrafficText
+                textSize = 16f
+                setTextColor(getColor(R.color.text_primary))
+            })
+        }
+        card.addView(titleRow)
+
+        val status = TextView(this).apply {
+            textSize = 14f
+            setTypeface(typeface, Typeface.BOLD)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+        }
+        if (result.hasError) {
+            status.text = "UNAVAILABLE"
+            status.setTextColor(getColor(R.color.on_warning_badge))
+            status.setBackgroundColor(getColor(R.color.status_warning))
+        } else {
+            status.text = DelayMath.statusText(result.isDelayed, result.delayMinutes)
+            if (result.isDelayed) {
+                status.setTextColor(getColor(R.color.on_delay_badge))
+                status.setBackgroundColor(getColor(R.color.delay_late))
+            } else {
+                status.setTextColor(getColor(R.color.on_delay_badge))
+                status.setBackgroundColor(getColor(R.color.delay_on_time))
+            }
+        }
+        card.addView(status)
+
+        val detail = buildString {
+            if (result.hasError) {
+                append(result.error)
+            } else {
+                if (result.distanceText.isNotEmpty()) append(result.distanceText)
+                if (result.summary.isNotEmpty()) {
+                    if (isNotEmpty()) append(" · ")
+                    append("via ${result.summary}")
+                }
+            }
+        }
+        if (detail.isNotEmpty()) {
+            card.addView(TextView(this).apply {
+                text = detail
+                textSize = 14f
+                setPadding(0, dp(6), 0, 0)
+                setTextColor(getColor(R.color.text_secondary))
+            })
+        }
+        return card
+    }
+
+    private fun messageView(text: String): TextView = TextView(this).apply {
+        this.text = text
+        textSize = 15f
+        setTextColor(getColor(R.color.text_secondary))
+    }
+
+    private fun requestForegroundPermissions() {
         if (!hasLocationPermission()) {
             locationPermissionLauncher.launch(
                 arrayOf(
@@ -300,17 +420,26 @@ class MainActivity : AppCompatActivity() {
                 )
             )
         } else {
-            requestBackgroundLocationIfNeeded()
+            requestNotificationPermissionIfNeeded()
         }
     }
 
-    private fun requestBackgroundLocationIfNeeded() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+    private fun explainAndRequestBackgroundLocation() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.background_location_title))
+            .setMessage(backgroundLocationMessage())
+            .setPositiveButton(getString(R.string.background_location_allow)) { _, _ ->
+                backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun backgroundLocationMessage(): String {
+        return if (prefsManager.isUsbTriggerEnabled()) {
+            getString(R.string.background_location_message_usb)
         } else {
-            requestNotificationPermissionIfNeeded()
+            getString(R.string.background_location_message_car)
         }
     }
 
@@ -326,6 +455,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun hasBackgroundLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

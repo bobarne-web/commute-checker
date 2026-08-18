@@ -2,6 +2,7 @@ package com.commutecheck.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.commutecheck.app.BuildConfig
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -21,6 +22,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_RESULTS = "last_results"
         private const val KEY_LAST_RESULTS_PLACE = "last_results_place"
         private const val KEY_LAST_RESULTS_TIME = "last_results_time"
+        private const val KEY_USB_TRIGGER_ENABLED = "usb_trigger_enabled"
+        private const val KEY_LAST_TRIGGER_TIME = "last_trigger_time"
 
         const val DEFAULT_DELAY_THRESHOLD_MIN = 3
     }
@@ -131,8 +134,29 @@ class PreferencesManager(context: Context) {
 
     fun getLastResultsTime(): Long = prefs.getLong(KEY_LAST_RESULTS_TIME, 0L)
 
+    // --- USB last-resort trigger ---
+
+    fun isUsbTriggerEnabled(): Boolean = prefs.getBoolean(KEY_USB_TRIGGER_ENABLED, false)
+
+    fun setUsbTriggerEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_USB_TRIGGER_ENABLED, enabled).apply()
+    }
+
+    // --- Automatic-trigger cooldown ---
+
+    fun getLastTriggerTime(): Long = prefs.getLong(KEY_LAST_TRIGGER_TIME, 0L)
+
+    fun markCheckTriggered(atMs: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong(KEY_LAST_TRIGGER_TIME, atMs).apply()
+    }
+
     // --- Configuration check ---
 
     /** Configured once there is at least one place and one watch. */
     fun isConfigured(): Boolean = getPlaces().isNotEmpty() && getWatches().isNotEmpty()
+
+    fun hasUsableApiKey(): Boolean =
+        getMapsApiKey().isNotEmpty() || BuildConfig.MAPS_API_KEY.isNotEmpty()
+
+    fun needsSetup(): Boolean = !hasUsableApiKey() || !isConfigured()
 }

@@ -13,8 +13,8 @@ android {
         applicationId = "com.commutecheck.app"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
 
         // Read MAPS_API_KEY from local.properties, gradle property (-P), or fall back to empty
         val localProps = Properties()
@@ -85,4 +85,6 @@ dependencies {
 
     // Android for Cars App Library (Android Auto support)
     implementation("androidx.car.app:app:1.4.0")
+
+    testImplementation("junit:junit:4.13.2")
 }

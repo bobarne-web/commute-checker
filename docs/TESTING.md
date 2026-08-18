@@ -20,12 +20,13 @@ There are two layers to test:
    ```
    MAPS_API_KEY=AIza...your key...
    ```
-2. While testing on the emulator, the emulator's signature won't match your API-key restriction. In **Google Cloud Console → Credentials → your key**, temporarily set **Application restrictions = None** (re-tighten later). Keep **Directions API** + **Maps SDK for Android** enabled under API restrictions.
+2. While testing on the emulator, the emulator's signature won't match your API-key restriction. In **Google Cloud Console → Credentials → your key**, temporarily set **Application restrictions = None** (re-tighten later). Keep **Directions API** + **Maps SDK for Android** enabled under API restrictions. Do not commit a real key.
 
 ### 3. Build & run
 1. Select **app** in the run-config dropdown and your emulator as the target.
 2. Click **▶ Run** (Shift+F10). The app installs and launches.
-3. Grant **Location** ("While using the app" or "Allow all the time") and **Notifications** when prompted.
+3. Complete first-run setup (API key if needed, Home, a destination, a watch covering now).
+4. Grant **while-using** location and **Notifications** when prompted. Background location is explained later, only if automatic car/USB checks need it.
 
 ### 4. Give the emulator a GPS location
 The app checks "which place am I at?", so set a fake location:
@@ -44,12 +45,12 @@ The app checks "which place am I at?", so set a fake location:
 
 ### 7. Run a check
 1. On the main screen tap **Test Check**.
-2. Pull down the notification shade. You should see a notification listing each active route:
-   - `To Home: 23 min` in **green** if delay ≤ 3 min
-   - `To Truckee: 58 min  +14 min` in **red** if traffic delay > 3 min
+2. The phone home should list each route as its own row (destination, duration, then an **ON TIME** or **DELAY +N min** badge — not a single emoji blob). The notification uses the same labels:
+   - `To Home: 23 min  ON TIME` if extra traffic minutes are **below** the threshold
+   - `To Truckee: 58 min  DELAY +14 min` if extra traffic minutes are **≥** the threshold (default 3)
 3. Change the emulator location to your **Home** coords and Test Check again — now "To Home" should be skipped (you're already there) and "To Work" appears if you added that watch.
 
-> Tip: to force a red result, set the delay threshold to `0` in **Settings** temporarily — any traffic at all will then show red.
+> The comparison is inclusive: `delayMinutes >= threshold`. Threshold `0` marks every successful route as DELAY, including 0 extra minutes.
 
 This confirms the whole engine: place detection, day/time/season gating, parallel travel-time lookups, delay math, and color coding.
 
@@ -84,17 +85,17 @@ A car-head-unit window opens.
 ### 4. Open Commute Checker on the car screen
 1. In the DHU, open the **app launcher** (grid icon).
 2. Our app should appear in the launcher (requires "Unknown sources" enabled in Android Auto developer settings). Tap **Commute Checker**.
-3. You'll see the color-coded route list — green for on-time, red with `+X min` for delayed — plus a **Refresh** button.
+3. You'll see last-cached rows immediately (if a check has run), then a live refresh. Each row is labeled **ON TIME** or **DELAY +N min**, plus a **Refresh** button.
 4. Change the emulator's GPS location (Extended controls → Location) and tap **Refresh** to see the routes recompute from the new origin.
 
 ### Important: Physical Car Testing Limitations
 
-**Apps will NOT appear in physical car launchers when sideloaded.** Android Auto requires apps to be distributed through:
+This project does not publish to Play. **Apps will NOT appear in physical car launchers when sideloaded.** Android Auto requires Play distribution:
 - Google Play Store (production)
 - Internal App Sharing (for testing)
 - Internal Test Track (for testing)
 
-This is a security restriction by Google. However, **notifications will still work** on physical cars even if the launcher doesn't show the app. To test notifications:
+Debug builds use an open host validator so the DHU works. Release builds allow only the official Android Auto hosts. **Notifications** still work on physical cars even if the launcher doesn't show the app. To test notifications:
 1. Use the "Test Commute Check Now" button in the phone app
 2. Verify notifications appear on your phone
 3. When connected to Android Auto, notifications should also appear on the car display
@@ -119,4 +120,5 @@ The app uses a **template surface** for the car dashboard and **notifications** 
 ---
 
 ## What can't be tested off a real car
-- Auto-trigger on USB-power connect (`AndroidAutoReceiver`) — on the bench you trigger checks with **Test Check** / **Refresh**. In a real car it fires automatically when you plug in.
+- Auto-trigger on Android Auto / car-mode connect (`CarConnectionMonitor` / `AndroidAutoReceiver`) — on the bench you trigger checks with **Test Check** / **Refresh**.
+- Optional USB last-resort trigger — off by default; when enabled it debounces 5 seconds and shares a 10-minute cooldown with the car-connection path.

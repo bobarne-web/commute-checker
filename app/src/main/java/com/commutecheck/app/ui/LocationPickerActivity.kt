@@ -95,8 +95,17 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
             map.isMyLocationEnabled = true
         }
 
-        // Default to a zoomed-out view of the US
-        map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(39.8283, -98.5795), 4f))
+        if (intent.hasExtra(EXTRA_INITIAL_LATITUDE) && intent.hasExtra(EXTRA_INITIAL_LONGITUDE)) {
+            val latLng = LatLng(
+                intent.getDoubleExtra(EXTRA_INITIAL_LATITUDE, 0.0),
+                intent.getDoubleExtra(EXTRA_INITIAL_LONGITUDE, 0.0)
+            )
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 16f))
+            selectLocation(latLng)
+        } else {
+            // Default to a zoomed-out view of the US
+            map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(39.8283, -98.5795), 4f))
+        }
 
         map.setOnMapClickListener { latLng ->
             selectLocation(latLng)
@@ -183,6 +192,8 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
     companion object {
         const val EXTRA_TITLE = "title"
         const val EXTRA_INITIAL_NAME = "initial_name"
+        const val EXTRA_INITIAL_LATITUDE = "initial_latitude"
+        const val EXTRA_INITIAL_LONGITUDE = "initial_longitude"
         const val EXTRA_LOCATION_NAME = "location_name"
         const val EXTRA_LATITUDE = "latitude"
         const val EXTRA_LONGITUDE = "longitude"

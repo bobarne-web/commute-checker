@@ -91,6 +91,30 @@ data class Watch(
         val ALL_MONTHS: Set<Int> = (1..12).toSet()
         val SUMMER_MONTHS: Set<Int> = setOf(5, 6, 7, 8, 9, 10) // May–Oct
         fun newId(): String = java.util.UUID.randomUUID().toString()
+
+        /**
+         * First-run watch whose window includes [now] so a test check can run immediately.
+         */
+        fun coveringNow(
+            name: String,
+            destinationPlaceId: String,
+            now: Calendar = Calendar.getInstance(),
+            id: String = newId()
+        ): Watch {
+            val hour = now.get(Calendar.HOUR_OF_DAY)
+            return Watch(
+                id = id,
+                name = name,
+                destinationPlaceId = destinationPlaceId,
+                enabledDays = ALL_DAYS,
+                startHour = (hour - 1).coerceAtLeast(0),
+                startMinute = 0,
+                endHour = (hour + 2).coerceAtMost(23),
+                endMinute = 59,
+                enabled = true,
+                activeMonths = ALL_MONTHS
+            )
+        }
     }
 }
 
