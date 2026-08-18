@@ -302,6 +302,10 @@ class PlacesActivity : AppCompatActivity() {
         val intent = Intent(this, LocationPickerActivity::class.java).apply {
             putExtra(LocationPickerActivity.EXTRA_TITLE,
                 if (existing == null) "Set location" else "Move ${existing.name}")
+            if (existing != null) {
+                putExtra(LocationPickerActivity.EXTRA_INITIAL_LATITUDE, existing.latitude)
+                putExtra(LocationPickerActivity.EXTRA_INITIAL_LONGITUDE, existing.longitude)
+            }
         }
         pickerLauncher.launch(intent)
     }

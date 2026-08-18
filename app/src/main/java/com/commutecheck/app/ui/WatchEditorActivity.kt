@@ -2,7 +2,6 @@ package com.commutecheck.app.ui
 
 import android.app.TimePickerDialog
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
@@ -228,13 +227,16 @@ class WatchEditorActivity : AppCompatActivity() {
                 textOn = dayLabels[index]
                 textOff = dayLabels[index]
                 text = dayLabels[index]
+                minWidth = 0
                 layoutParams = LinearLayout.LayoutParams(
                     dp(48), dp(40)
                 ).apply { rightMargin = dp(4) }
-                setOnCheckedChangeListener { _, isChecked ->
+                setOnCheckedChangeListener { button, isChecked ->
                     if (isChecked) customDays.add(day) else customDays.remove(day)
+                    styleDayToggle(button as ToggleButton, isChecked)
                 }
             }
+            styleDayToggle(toggle, false)
             dayToggles[day] = toggle
             container.addView(toggle)
         }
@@ -271,7 +273,24 @@ class WatchEditorActivity : AppCompatActivity() {
 
     private fun updateDayToggles() {
         dayOrder.forEach { day ->
-            dayToggles[day]?.isChecked = customDays.contains(day)
+            val checked = customDays.contains(day)
+            dayToggles[day]?.let { toggle ->
+                if (toggle.isChecked != checked) {
+                    toggle.isChecked = checked
+                } else {
+                    styleDayToggle(toggle, checked)
+                }
+            }
+        }
+    }
+
+    private fun styleDayToggle(toggle: ToggleButton, checked: Boolean) {
+        if (checked) {
+            toggle.backgroundTintList = ColorStateList.valueOf(getColor(R.color.primary))
+            toggle.setTextColor(getColor(R.color.on_primary))
+        } else {
+            toggle.backgroundTintList = ColorStateList.valueOf(getColor(R.color.day_toggle_off))
+            toggle.setTextColor(getColor(R.color.text_secondary))
         }
     }
 

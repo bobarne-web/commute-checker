@@ -1,5 +1,7 @@
 package com.commutecheck.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.text.InputType
 import android.view.View
@@ -9,8 +11,12 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
+import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.google.android.material.appbar.MaterialToolbar
 import com.commutecheck.app.BuildConfig
@@ -18,14 +24,18 @@ import com.commutecheck.app.R
 import com.commutecheck.app.data.PreferencesManager
 
 /**
- * App-wide settings: Google Maps API key and the traffic delay threshold used to
- * decide when a route is shown red (delayed) vs green (on time).
+ * App-wide settings: Google Maps API key, delay threshold, and last-resort USB trigger.
  */
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var prefs: PreferencesManager
     private lateinit var apiKeyInput: EditText
     private lateinit var thresholdInput: EditText
+    private lateinit var usbSwitch: SwitchCompat
+
+    private val backgroundLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* banner on Main will refresh when we return */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,9 +73,12 @@ class SettingsActivity : AppCompatActivity() {
             setPadding(pad, pad, pad, pad)
         }
 
-        root.addView(label("Traffic delay threshold (minutes)"))
+        root.addView(label(getString(R.string.delay_threshold_title)))
         root.addView(TextView(this).apply {
-            text = "Routes delayed by more than this show in red with the extra minutes; otherwise green."
+            text = getString(
+                R.string.delay_threshold_description,
+                PreferencesManager.DEFAULT_DELAY_THRESHOLD_MIN
+            )
             setTextColor(getColor(R.color.text_secondary))
         })
         thresholdInput = EditText(this).apply {
@@ -81,21 +94,46 @@ class SettingsActivity : AppCompatActivity() {
         })
         apiKeyInput = EditText(this).apply {
             hint = getString(R.string.api_key_hint)
-            inputType = InputType.TYPE_CLASS_TEXT
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setText(prefs.getMapsApiKey())
         }
         root.addView(apiKeyInput)
 
         val buildKeyNote = if (BuildConfig.MAPS_API_KEY.isNotEmpty()) {
-            "A build-time API key is present and used if this field is left blank."
+            getString(R.string.api_key_build_present)
         } else {
-            "No build-time API key found — enter one here."
+            getString(R.string.api_key_build_missing)
         }
         root.addView(TextView(this).apply {
             text = buildKeyNote
             setTextColor(getColor(R.color.text_secondary))
             setPadding(0, dp(4), 0, 0)
         })
+
+        root.addView(label(getString(R.string.usb_trigger_title)))
+        root.addView(TextView(this).apply {
+            text = getString(R.string.usb_trigger_description)
+            setTextColor(getColor(R.color.text_secondary))
+        })
+        val usbRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        usbRow.addView(TextView(this).apply {
+            text = getString(R.string.usb_trigger_switch)
+            textSize = 16f
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        usbSwitch = SwitchCompat(this).apply {
+            isChecked = prefs.isUsbTriggerEnabled()
+            setOnCheckedChangeListener { _, isChecked ->
+                prefs.setUsbTriggerEnabled(isChecked)
+                if (isChecked) maybeExplainBackgroundLocationForUsb()
+            }
+        }
+        usbRow.addView(usbSwitch)
+        root.addView(usbRow)
 
         root.addView(Button(this).apply {
             text = getString(R.string.save)
@@ -107,6 +145,22 @@ class SettingsActivity : AppCompatActivity() {
 
         screen.addView(ScrollView(this).apply { addView(root) })
         return screen
+    }
+
+    private fun maybeExplainBackgroundLocationForUsb() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.background_location_title))
+            .setMessage(getString(R.string.background_location_message_usb))
+            .setPositiveButton(getString(R.string.background_location_allow)) { _, _ ->
+                backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun save() {

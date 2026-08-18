@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import com.commutecheck.app.R
 import com.commutecheck.app.auto.CommuteCarAppService
 import com.commutecheck.app.data.RouteCheckResult
+import com.commutecheck.app.domain.DelayMath
 import com.commutecheck.app.ui.MainActivity
 
 class NotificationHelper(private val context: Context) {
@@ -87,7 +88,7 @@ class NotificationHelper(private val context: Context) {
 
     /**
      * Show a summary of all checked routes. Each route shows its travel time and,
-     * when delayed beyond the threshold, the extra minutes are flagged.
+     * when extra traffic minutes are at or above the threshold, DELAY +N is flagged.
      */
     fun showResultsNotification(currentPlaceName: String?, results: List<RouteCheckResult>) {
         if (results.isEmpty()) return
@@ -147,11 +148,8 @@ class NotificationHelper(private val context: Context) {
             append(result.destinationName)
             append(": ")
             append(result.durationInTrafficText)
-            if (result.isDelayed) {
-                append("  DELAY +${result.delayMinutes} min")
-            } else {
-                append("  ON TIME")
-            }
+            append("  ")
+            append(DelayMath.statusText(result.isDelayed, result.delayMinutes))
         }
     }
 

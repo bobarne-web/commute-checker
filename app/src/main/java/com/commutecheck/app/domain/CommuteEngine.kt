@@ -20,7 +20,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import java.util.Calendar
-import kotlin.math.roundToInt
 
 /**
  * Shared logic for running commute checks. Used by both the foreground service
@@ -102,8 +101,10 @@ class CommuteEngine(private val context: Context) {
 
         return result.fold(
             onSuccess = { travel ->
-                val delaySeconds = travel.durationInTrafficSeconds - travel.durationSeconds
-                val delayMinutes = (delaySeconds / 60.0).roundToInt().coerceAtLeast(0)
+                val delayMinutes = DelayMath.delayMinutes(
+                    travel.durationInTrafficSeconds,
+                    travel.durationSeconds
+                )
                 RouteCheckResult(
                     watchId = watch.id,
                     destinationName = watch.name.ifBlank { destination.name },
@@ -111,7 +112,7 @@ class CommuteEngine(private val context: Context) {
                     distanceText = travel.distanceText,
                     summary = travel.summary,
                     delayMinutes = delayMinutes,
-                    isDelayed = delayMinutes >= thresholdMin
+                    isDelayed = DelayMath.isDelayed(delayMinutes, thresholdMin)
                 )
             },
             onFailure = { error ->

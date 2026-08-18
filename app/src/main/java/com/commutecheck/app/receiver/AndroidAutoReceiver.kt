@@ -1,21 +1,24 @@
 package com.commutecheck.app.receiver
 
+import android.app.UiModeManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.util.Log
+import androidx.car.app.connection.CarConnection
 import com.commutecheck.app.data.PreferencesManager
+import com.commutecheck.app.domain.CarPresence
+import com.commutecheck.app.domain.CommuteTrigger
 import com.commutecheck.app.service.CommuteCheckService
 
 /**
- * Detects when the phone is plugged into a power source (proxy for Android Auto connection).
+ * Starts a commute check when the phone actually joins a car session.
  *
- * Android Auto requires a USB connection, which also triggers POWER_CONNECTED.
- * We use USB power detection as the trigger, since a dedicated Android Auto
- * broadcast is not publicly available. This covers the most common case of
- * plugging into a car's USB port.
+ * Preferred signals: Android Auto / car-mode connection.
+ * USB power is a last-resort opt-in with debounce and a shared cooldown so a
+ * charger plug-in does not fire a check every time.
  */
 class AndroidAutoReceiver : BroadcastReceiver() {
 
@@ -27,27 +30,55 @@ class AndroidAutoReceiver : BroadcastReceiver() {
         val prefs = PreferencesManager(context)
 
         if (!prefs.isAppEnabled()) {
-            Log.d(TAG, "App is disabled, ignoring power event")
+            Log.d(TAG, "App is disabled, ignoring ${intent.action}")
             return
         }
 
         if (!prefs.isConfigured()) {
-            Log.d(TAG, "App not configured (home/work locations not set)")
+            Log.d(TAG, "App not configured (places or watches missing)")
             return
         }
 
         when (intent.action) {
             Intent.ACTION_POWER_CONNECTED -> {
-                if (isUsbPower(context)) {
-                    Log.i(TAG, "USB power connected — starting commute check")
-                    startCommuteCheck(context)
-                } else {
+                if (!prefs.isUsbTriggerEnabled()) {
+                    Log.d(TAG, "USB power ignored — last-resort opt-in is off")
+                    return
+                }
+                if (!isUsbPower(context)) {
                     Log.d(TAG, "Non-USB power connected, ignoring")
+                    return
+                }
+                if (CarPresence.isCarConnected(context)) {
+                    Log.d(TAG, "USB power while already in a car session — car path owns the trigger")
+                    return
+                }
+                Log.i(TAG, "USB power connected — debounce then last-resort check")
+                val pending = goAsync()
+                CommuteTrigger.requestCheckAfterDebounce(
+                    context,
+                    CommuteTrigger.REASON_USB_POWER
+                ) {
+                    try {
+                        isUsbPower(context) && prefs.isUsbTriggerEnabled() &&
+                            !CarPresence.isCarConnected(context)
+                    } finally {
+                        pending.finish()
+                    }
                 }
             }
             Intent.ACTION_POWER_DISCONNECTED -> {
                 Log.i(TAG, "Power disconnected — stopping commute check service")
                 stopCommuteCheck(context)
+            }
+            UiModeManager.ACTION_ENTER_CAR_MODE,
+            CarConnection.ACTION_CAR_CONNECTION_UPDATED -> {
+                if (CarPresence.isCarConnected(context)) {
+                    Log.i(TAG, "Car connection detected via ${intent.action}")
+                    CommuteTrigger.requestCheck(context, CommuteTrigger.REASON_CAR_CONNECTION)
+                } else {
+                    Log.d(TAG, "${intent.action} received but car is not connected")
+                }
             }
         }
     }
@@ -59,13 +90,6 @@ class AndroidAutoReceiver : BroadcastReceiver() {
         )
         val plugged = batteryIntent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1
         return plugged == BatteryManager.BATTERY_PLUGGED_USB
-    }
-
-    private fun startCommuteCheck(context: Context) {
-        val serviceIntent = Intent(context, CommuteCheckService::class.java).apply {
-            action = CommuteCheckService.ACTION_CHECK_COMMUTE
-        }
-        context.startForegroundService(serviceIntent)
     }
 
     private fun stopCommuteCheck(context: Context) {

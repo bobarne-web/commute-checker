@@ -12,10 +12,10 @@ import androidx.car.app.model.Row
 import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import android.graphics.Color
 import com.commutecheck.app.data.PreferencesManager
 import com.commutecheck.app.data.RouteCheckResult
 import com.commutecheck.app.domain.CommuteEngine
+import com.commutecheck.app.domain.DelayMath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,25 +23,21 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * Android Auto car screen. Shows a color-coded dashboard of all relevant commute
- * times for the current location/time.
+ * Android Auto car screen. Shows cached results immediately, then refreshes.
+ * Delayed vs on-time is labeled in text (not color-only).
  */
 class CommuteScreen(carContext: CarContext) : Screen(carContext) {
-
-    private val normalTravelTimeColor = CarColor.createCustom(Color.WHITE, Color.WHITE)
-    private val abnormalTravelTimeColor = CarColor.createCustom(
-        Color.rgb(255, 64, 129),
-        Color.rgb(255, 64, 129)
-    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val prefs = PreferencesManager(carContext)
     private val engine = CommuteEngine(carContext)
 
     private var isLoading = true
+    private var isRefreshing = false
     private var statusMessage: String? = null
     private var currentPlaceName: String? = null
     private var results: List<RouteCheckResult> = emptyList()
+    private var showingCached = false
 
     init {
         lifecycle.addObserver(object : DefaultLifecycleObserver {
@@ -49,14 +45,30 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
                 scope.cancel()
             }
         })
+        restoreCachedResults()
         runChecks()
+    }
+
+    private fun restoreCachedResults() {
+        val cached = prefs.getLastResults()
+        val cachedPlace = prefs.getLastResultsPlace()
+        val cachedTime = prefs.getLastResultsTime()
+        if (cachedTime <= 0L && cached.isEmpty()) return
+
+        results = cached
+        currentPlaceName = cachedPlace.ifEmpty { null }
+        isLoading = false
+        showingCached = true
+        if (cached.isEmpty()) {
+            statusMessage = "No watches matched last time — refreshing…"
+        }
     }
 
     override fun onGetTemplate(): Template {
         val listBuilder = ItemList.Builder()
 
         if (!isLoading) {
-            if (statusMessage != null) {
+            if (statusMessage != null && results.isEmpty()) {
                 listBuilder.addItem(
                     Row.Builder()
                         .setTitle("Commute Checker")
@@ -71,6 +83,14 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
                         .build()
                 )
             } else {
+                if (showingCached || isRefreshing) {
+                    listBuilder.addItem(
+                        Row.Builder()
+                            .setTitle("Last saved times")
+                            .addText("Refreshing live traffic…")
+                            .build()
+                    )
+                }
                 results.forEach { result -> listBuilder.addItem(buildRow(result)) }
             }
         }
@@ -86,9 +106,11 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
                         Action.Builder()
                             .setTitle("Refresh")
                             .setOnClickListener {
-                                isLoading = true
+                                isRefreshing = true
                                 statusMessage = null
-                                results = emptyList()
+                                if (results.isEmpty()) {
+                                    isLoading = true
+                                }
                                 invalidate()
                                 runChecks()
                             }
@@ -110,22 +132,16 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
         if (result.hasError) {
             return Row.Builder()
                 .setTitle(result.destinationName)
-                .addText("Unavailable")
+                .addText("UNAVAILABLE")
                 .build()
         }
 
-        val color = if (result.isDelayed) abnormalTravelTimeColor else normalTravelTimeColor
-        val statusLabel = if (result.isDelayed) {
-            "DELAY  +${result.delayMinutes} min"
-        } else {
-            "ON TIME"
-        }
+        val statusLabel = DelayMath.statusText(result.isDelayed, result.delayMinutes)
+        val color = if (result.isDelayed) CarColor.RED else CarColor.GREEN
+        val title = "$statusLabel  ·  ${result.destinationName}  ·  ${result.durationInTrafficText}"
 
-        val builder = Row.Builder().setTitle(
-            "${result.destinationName}  ${result.durationInTrafficText}"
-        )
+        val builder = Row.Builder().setTitle(title)
 
-        // Keep normal travel neutral and make abnormal delays pop on the car screen.
         val span = ForegroundCarColorSpan.create(color)
         val styled = android.text.SpannableString(statusLabel)
         styled.setSpan(span, 0, statusLabel.length, android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE)
@@ -148,6 +164,8 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
             if (!prefs.isConfigured()) {
                 statusMessage = "Open the phone app to add places and watches"
                 isLoading = false
+                isRefreshing = false
+                showingCached = false
                 invalidate()
                 return@launch
             }
@@ -157,12 +175,16 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
                     currentPlaceName = result.currentPlaceName
                     results = result.results
                     statusMessage = null
+                    showingCached = false
                 }
                 is CommuteEngine.EngineResult.Failure -> {
-                    statusMessage = result.message
+                    if (results.isEmpty()) {
+                        statusMessage = result.message
+                    }
                 }
             }
             isLoading = false
+            isRefreshing = false
             invalidate()
         }
     }
