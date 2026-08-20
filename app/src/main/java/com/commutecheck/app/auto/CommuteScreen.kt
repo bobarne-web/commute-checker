@@ -137,7 +137,7 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
         }
 
         val statusLabel = DelayMath.statusText(result.isDelayed, result.delayMinutes)
-        val color = if (result.isDelayed) CarColor.RED else CarColor.GREEN
+        val color = statusCarColor(result.isDelayed)
         val title = "$statusLabel  ·  ${result.destinationName}  ·  ${result.durationInTrafficText}"
 
         val builder = Row.Builder().setTitle(title)
@@ -147,6 +147,7 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
         styled.setSpan(span, 0, statusLabel.length, android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE)
         builder.addText(CarText.create(styled))
 
+        val glance = result.glanceLine?.takeIf { it.isNotBlank() }
         val detail = buildString {
             if (result.distanceText.isNotEmpty()) append(result.distanceText)
             if (result.summary.isNotEmpty()) {
@@ -154,9 +155,26 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
                 append("via ${result.summary}")
             }
         }
-        if (detail.isNotEmpty()) builder.addText(detail)
+        val secondLine = when {
+            glance != null && detail.isNotEmpty() -> "$glance · $detail"
+            glance != null -> glance
+            else -> detail
+        }
+        if (secondLine.isNotEmpty()) builder.addText(secondLine)
 
         return builder.build()
+    }
+
+    /**
+     * Day and night colors stay high-contrast. The row still leads with
+     * ON TIME / DELAY text so status is never color-only.
+     */
+    private fun statusCarColor(isDelayed: Boolean): CarColor {
+        return if (isDelayed) {
+            CarColor.createCustom(DAY_DELAY, NIGHT_DELAY)
+        } else {
+            CarColor.createCustom(DAY_ON_TIME, NIGHT_ON_TIME)
+        }
     }
 
     private fun runChecks() {
@@ -187,5 +205,12 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
             isRefreshing = false
             invalidate()
         }
+    }
+
+    companion object {
+        private const val DAY_ON_TIME = 0xFF1B7A3D.toInt()
+        private const val NIGHT_ON_TIME = 0xFF7DDA8A.toInt()
+        private const val DAY_DELAY = 0xFFB00020.toInt()
+        private const val NIGHT_DELAY = 0xFFFF8A80.toInt()
     }
 }

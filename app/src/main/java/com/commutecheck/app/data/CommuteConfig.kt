@@ -142,7 +142,70 @@ data class RouteCheckResult(
     val summary: String,
     val delayMinutes: Int,
     val isDelayed: Boolean,
-    val error: String? = null
+    val error: String? = null,
+    val destinationPlaceId: String = "",
+    val durationSeconds: Long = 0L,
+    val durationInTrafficSeconds: Long = 0L,
+    val glanceLine: String? = null
 ) {
     val hasError: Boolean get() = error != null
+}
+
+/**
+ * One successful commute check, kept so later runs can show typical time.
+ */
+data class RouteHistoryEntry(
+    val durationSeconds: Long,
+    val durationInTrafficSeconds: Long,
+    val delayMinutes: Int,
+    val originPlaceName: String?,
+    val destinationName: String,
+    val destinationPlaceId: String,
+    val timestampMs: Long
+)
+
+/**
+ * Last successful Directions payload for a destination, used as a short cooldown cache.
+ */
+data class CachedRoute(
+    val destinationPlaceId: String,
+    val originLat: Double,
+    val originLng: Double,
+    val durationText: String,
+    val durationSeconds: Long,
+    val durationInTrafficText: String,
+    val durationInTrafficSeconds: Long,
+    val distanceText: String,
+    val summary: String,
+    val cachedAtMs: Long
+) {
+    fun toTravelTime(): TravelTimeResult = TravelTimeResult(
+        durationText = durationText,
+        durationSeconds = durationSeconds,
+        durationInTrafficText = durationInTrafficText,
+        durationInTrafficSeconds = durationInTrafficSeconds,
+        distanceText = distanceText,
+        summary = summary
+    )
+
+    companion object {
+        fun from(
+            destinationPlaceId: String,
+            originLat: Double,
+            originLng: Double,
+            travel: TravelTimeResult,
+            cachedAtMs: Long
+        ): CachedRoute = CachedRoute(
+            destinationPlaceId = destinationPlaceId,
+            originLat = originLat,
+            originLng = originLng,
+            durationText = travel.durationText,
+            durationSeconds = travel.durationSeconds,
+            durationInTrafficText = travel.durationInTrafficText,
+            durationInTrafficSeconds = travel.durationInTrafficSeconds,
+            distanceText = travel.distanceText,
+            summary = travel.summary,
+            cachedAtMs = cachedAtMs
+        )
+    }
 }

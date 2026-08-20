@@ -163,6 +163,7 @@ class WatchEditorActivity : AppCompatActivity() {
         timeRow.addView(TextView(this).apply {
             text = "  to  "
             gravity = Gravity.CENTER
+            setTextColor(getColor(R.color.text_primary))
         })
         timeRow.addView(endTimeButton)
         root.addView(timeRow)
@@ -191,6 +192,7 @@ class WatchEditorActivity : AppCompatActivity() {
         enabledRow.addView(TextView(this).apply {
             text = "Watch enabled"
             textSize = 16f
+            setTextColor(getColor(R.color.text_primary))
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         enabledSwitch = SwitchCompat(this).apply { isChecked = existing?.enabled ?: true }
