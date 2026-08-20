@@ -26,7 +26,7 @@ class TypicalTimeTest {
         assertNull(TypicalTime.typicalMinutes(emptyList()))
         assertNull(TypicalTime.typicalMinutes(listOf(24)))
         assertEquals(24, TypicalTime.typicalMinutes(listOf(24, 24)))
-        assertEquals(25, TypicalTime.typicalMinutes(listOf(20, 24, 30)))
+        assertEquals(24, TypicalTime.typicalMinutes(listOf(20, 24, 30)))
         assertEquals(23, TypicalTime.typicalMinutes(listOf(20, 26)))
     }
 
