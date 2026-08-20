@@ -120,3 +120,13 @@ Background location is requested only when automatic car/USB checks need it — 
 - **Foreground Service (Location)** — to run the commute check
 - **Post Notifications** — to show travel time results
 - **Receive Boot Completed** — to ensure receivers are active after reboot
+
+## Privacy policy
+
+Public policy page for Google Play: [`docs/privacy.html`](docs/privacy.html).
+
+- **GitHub Pages (preferred):** https://bobarne-web.github.io/commute-checker/privacy.html
+- **Raw file (public without Pages):** https://raw.githubusercontent.com/bobarne-web/commute-checker/cursor/typical-time-dark-theme-420b/docs/privacy.html
+
+Pages is not enabled from this repo yet. To serve the preferred URL, in GitHub:
+**Settings → Pages → Deploy from a branch**, choose the branch that contains `docs/privacy.html`, and set the folder to `/docs`. Or set the source to **GitHub Actions** and run the `Deploy GitHub Pages` workflow.
