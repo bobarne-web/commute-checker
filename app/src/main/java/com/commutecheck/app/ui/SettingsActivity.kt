@@ -123,6 +123,7 @@ class SettingsActivity : AppCompatActivity() {
         usbRow.addView(TextView(this).apply {
             text = getString(R.string.usb_trigger_switch)
             textSize = 16f
+            setTextColor(getColor(R.color.text_primary))
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         usbSwitch = SwitchCompat(this).apply {

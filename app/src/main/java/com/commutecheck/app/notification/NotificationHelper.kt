@@ -21,10 +21,13 @@ import com.commutecheck.app.ui.MainActivity
 
 class NotificationHelper(private val context: Context) {
 
-    private val normalTravelTimeColor = CarColor.createCustom(Color.WHITE, Color.WHITE)
+    private val normalTravelTimeColor = CarColor.createCustom(
+        Color.WHITE,
+        Color.parseColor("#E6E1E5")
+    )
     private val abnormalTravelTimeColor = CarColor.createCustom(
         Color.rgb(255, 64, 129),
-        Color.rgb(255, 64, 129)
+        Color.parseColor("#FF8A80")
     )
 
     companion object {
@@ -150,6 +153,11 @@ class NotificationHelper(private val context: Context) {
             append(result.durationInTrafficText)
             append("  ")
             append(DelayMath.statusText(result.isDelayed, result.delayMinutes))
+            val glance = result.glanceLine?.takeIf { it.isNotBlank() }
+            if (glance != null) {
+                append("  ")
+                append(glance)
+            }
         }
     }
 

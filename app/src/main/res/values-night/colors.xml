@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#121212</color>
+    <color name="text_primary">#E6E1E5</color>
+    <color name="text_secondary">#CAC4D0</color>
+    <color name="status_active">#7DDA8A</color>
+    <color name="status_warning">#FFB77C</color>
+    <color name="status_disabled">#938F99</color>
+    <color name="primary">#D0BCFF</color>
+    <color name="on_primary">#381E72</color>
+    <color name="primary_container">#4F378B</color>
+    <color name="on_primary_container">#EADDFF</color>
+    <color name="surface">#1C1B1F</color>
+    <color name="surface_variant">#2B2930</color>
+    <color name="travel_time_clear">#E6E1E5</color>
+    <color name="travel_time_delayed">#FF8A80</color>
+    <color name="delay_on_time">#2E7D32</color>
+    <color name="delay_late">#E53935</color>
+    <color name="on_delay_badge">#FFFFFF</color>
+    <color name="on_warning_badge">#1C1B1F</color>
+    <color name="day_toggle_off">#2B2930</color>
+</resources>

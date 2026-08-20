@@ -127,6 +127,7 @@ class MainActivity : AppCompatActivity() {
         enableRow.addView(TextView(this).apply {
             text = getString(R.string.enabled)
             textSize = 16f
+            setTextColor(getColor(R.color.text_primary))
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         enableSwitch = SwitchCompat(this).apply {
@@ -400,6 +401,15 @@ class MainActivity : AppCompatActivity() {
                 textSize = 14f
                 setPadding(0, dp(6), 0, 0)
                 setTextColor(getColor(R.color.text_secondary))
+            })
+        }
+        val glance = result.glanceLine?.takeIf { it.isNotBlank() }
+        if (glance != null) {
+            card.addView(TextView(this).apply {
+                text = glance
+                textSize = 14f
+                setPadding(0, dp(4), 0, 0)
+                setTextColor(getColor(R.color.text_primary))
             })
         }
         return card

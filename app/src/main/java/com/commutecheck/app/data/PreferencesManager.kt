@@ -3,6 +3,8 @@ package com.commutecheck.app.data
 import android.content.Context
 import android.content.SharedPreferences
 import com.commutecheck.app.BuildConfig
+import com.commutecheck.app.domain.GeoPoint
+import com.commutecheck.app.domain.TypicalTime
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -24,6 +26,11 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_RESULTS_TIME = "last_results_time"
         private const val KEY_USB_TRIGGER_ENABLED = "usb_trigger_enabled"
         private const val KEY_LAST_TRIGGER_TIME = "last_trigger_time"
+        private const val KEY_ROUTE_HISTORY = "route_history"
+        private const val KEY_ROUTE_CACHE = "route_cooldown_cache"
+        private const val KEY_LAST_ORIGIN_LAT_BITS = "last_origin_lat_bits"
+        private const val KEY_LAST_ORIGIN_LNG_BITS = "last_origin_lng_bits"
+        private const val KEY_LAST_ORIGIN_SET = "last_origin_set"
 
         const val DEFAULT_DELAY_THRESHOLD_MIN = 3
     }
@@ -133,6 +140,54 @@ class PreferencesManager(context: Context) {
     fun getLastResultsPlace(): String = prefs.getString(KEY_LAST_RESULTS_PLACE, "") ?: ""
 
     fun getLastResultsTime(): Long = prefs.getLong(KEY_LAST_RESULTS_TIME, 0L)
+
+    // --- Typical-time history (successful checks only) ---
+
+    fun getRouteHistory(): List<RouteHistoryEntry> {
+        val json = prefs.getString(KEY_ROUTE_HISTORY, null) ?: return emptyList()
+        val type = object : TypeToken<List<RouteHistoryEntry>>() {}.type
+        return gson.fromJson(json, type) ?: emptyList()
+    }
+
+    fun appendRouteHistory(entry: RouteHistoryEntry) {
+        val next = (getRouteHistory() + entry).takeLast(TypicalTime.MAX_HISTORY)
+        prefs.edit().putString(KEY_ROUTE_HISTORY, gson.toJson(next)).apply()
+    }
+
+    // --- Directions cooldown cache ---
+
+    fun getCachedRoutes(): List<CachedRoute> {
+        val json = prefs.getString(KEY_ROUTE_CACHE, null) ?: return emptyList()
+        val type = object : TypeToken<List<CachedRoute>>() {}.type
+        return gson.fromJson(json, type) ?: emptyList()
+    }
+
+    fun findCachedRoute(destinationPlaceId: String): CachedRoute? =
+        getCachedRoutes().lastOrNull { it.destinationPlaceId == destinationPlaceId }
+
+    fun upsertCachedRoute(entry: CachedRoute) {
+        val next = getCachedRoutes()
+            .filterNot { it.destinationPlaceId == entry.destinationPlaceId } + entry
+        prefs.edit().putString(KEY_ROUTE_CACHE, gson.toJson(next.takeLast(12))).apply()
+    }
+
+    // --- Last origin that produced a usable location ---
+
+    fun saveLastSuccessfulOrigin(latitude: Double, longitude: Double) {
+        prefs.edit()
+            .putLong(KEY_LAST_ORIGIN_LAT_BITS, latitude.toRawBits())
+            .putLong(KEY_LAST_ORIGIN_LNG_BITS, longitude.toRawBits())
+            .putBoolean(KEY_LAST_ORIGIN_SET, true)
+            .apply()
+    }
+
+    fun getLastSuccessfulOrigin(): GeoPoint? {
+        if (!prefs.getBoolean(KEY_LAST_ORIGIN_SET, false)) return null
+        return GeoPoint(
+            latitude = Double.fromBits(prefs.getLong(KEY_LAST_ORIGIN_LAT_BITS, 0L)),
+            longitude = Double.fromBits(prefs.getLong(KEY_LAST_ORIGIN_LNG_BITS, 0L))
+        )
+    }
 
     // --- USB last-resort trigger ---
 

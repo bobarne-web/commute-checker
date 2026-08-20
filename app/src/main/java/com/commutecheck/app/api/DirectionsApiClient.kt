@@ -10,17 +10,23 @@ import okhttp3.Request
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-class DirectionsApiClient(private val apiKey: String) {
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
+class DirectionsApiClient(
+    private val apiKey: String,
+    private val httpClient: OkHttpClient = sharedClient
+) {
 
     private val gson = Gson()
 
     companion object {
         private const val BASE_URL = "https://maps.googleapis.com/maps/api/directions/json"
+
+        /** One shared client so phone, service, and car reuse connections. */
+        val sharedClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .build()
+        }
     }
 
     suspend fun getTravelTime(
@@ -29,7 +35,17 @@ class DirectionsApiClient(private val apiKey: String) {
         destLat: Double,
         destLng: Double
     ): Result<TravelTimeResult> = withContext(Dispatchers.IO) {
-        try {
+        executeTravelTime(originLat, originLng, destLat, destLng, allowRetry = true)
+    }
+
+    private fun executeTravelTime(
+        originLat: Double,
+        originLng: Double,
+        destLat: Double,
+        destLng: Double,
+        allowRetry: Boolean
+    ): Result<TravelTimeResult> {
+        return try {
             val url = buildString {
                 append(BASE_URL)
                 append("?origin=$originLat,$originLng")
@@ -44,12 +60,16 @@ class DirectionsApiClient(private val apiKey: String) {
                 .get()
                 .build()
 
-            val response = client.newCall(request).execute()
+            val response = httpClient.newCall(request).execute()
+            val httpCode = response.code
             val body = response.body?.string()
 
             if (!response.isSuccessful || body == null) {
-                return@withContext Result.failure(
-                    IOException("API request failed: ${response.code}")
+                if (allowRetry && DirectionsPolicy.shouldRetry(httpCode, null)) {
+                    return executeTravelTime(originLat, originLng, destLat, destLng, allowRetry = false)
+                }
+                return Result.failure(
+                    IOException("API request failed: $httpCode")
                 )
             }
 
@@ -57,15 +77,18 @@ class DirectionsApiClient(private val apiKey: String) {
             val status = json.get("status")?.asString
 
             if (status != "OK") {
+                if (allowRetry && DirectionsPolicy.shouldRetry(httpCode, status)) {
+                    return executeTravelTime(originLat, originLng, destLat, destLng, allowRetry = false)
+                }
                 val errorMsg = json.get("error_message")?.asString ?: "Unknown error"
-                return@withContext Result.failure(
+                return Result.failure(
                     IOException("Directions API error: $status - $errorMsg")
                 )
             }
 
             val routes = json.getAsJsonArray("routes")
             if (routes == null || routes.size() == 0) {
-                return@withContext Result.failure(
+                return Result.failure(
                     IOException("No routes found")
                 )
             }
