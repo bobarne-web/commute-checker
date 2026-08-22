@@ -76,7 +76,7 @@ class CommuteEngine(private val context: Context) {
         }
 
         if (activeWatches.isEmpty()) {
-            prefs.saveLastResults(currentPlace?.name ?: "On the road", emptyList())
+            prefs.saveLastResults(currentPlace?.name ?: TypicalTime.UNMATCHED_ORIGIN_NAME, emptyList())
             return EngineResult.Success(currentPlace?.name, emptyList())
         }
 
@@ -90,7 +90,7 @@ class CommuteEngine(private val context: Context) {
                         origin = location,
                         places = places,
                         thresholdMin = thresholdMin,
-                        currentPlaceName = currentPlace?.name,
+                        currentPlace = currentPlace,
                         nowMs = nowMs,
                         history = history
                     )
@@ -104,17 +104,18 @@ class CommuteEngine(private val context: Context) {
                 durationSeconds = result.durationSeconds,
                 durationInTrafficSeconds = result.durationInTrafficSeconds,
                 delayMinutes = result.delayMinutes,
-                originPlaceName = currentPlace?.name,
+                originPlaceName = currentPlace?.name ?: TypicalTime.UNMATCHED_ORIGIN_NAME,
                 destinationName = result.destinationName,
                 destinationPlaceId = result.destinationPlaceId,
-                timestampMs = nowMs
+                timestampMs = nowMs,
+                originPlaceId = currentPlace?.id
             )
             if (TypicalTime.shouldRecord(prefs.getRouteHistory(), entry)) {
                 prefs.appendRouteHistory(entry)
             }
         }
 
-        prefs.saveLastResults(currentPlace?.name ?: "On the road", results)
+        prefs.saveLastResults(currentPlace?.name ?: TypicalTime.UNMATCHED_ORIGIN_NAME, results)
         return EngineResult.Success(currentPlace?.name, results)
     }
 
@@ -133,7 +134,7 @@ class CommuteEngine(private val context: Context) {
         origin: Location,
         places: List<Place>,
         thresholdMin: Int,
-        currentPlaceName: String?,
+        currentPlace: Place?,
         nowMs: Long,
         history: List<RouteHistoryEntry>
     ): RouteCheckResult? {
@@ -154,8 +155,9 @@ class CommuteEngine(private val context: Context) {
                         history = history,
                         destinationName = destinationName,
                         destinationPlaceId = destination.id,
-                        originPlaceName = currentPlaceName,
-                        nowMs = nowMs
+                        originPlaceName = currentPlace?.name ?: TypicalTime.UNMATCHED_ORIGIN_NAME,
+                        nowMs = nowMs,
+                        originPlaceId = currentPlace?.id
                     )
                 )
                 RouteCheckResult(
