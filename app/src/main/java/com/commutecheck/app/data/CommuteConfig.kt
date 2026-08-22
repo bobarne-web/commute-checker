@@ -152,7 +152,8 @@ data class RouteCheckResult(
 }
 
 /**
- * One successful commute check, kept so later runs can show typical time.
+ * One successful commute check, kept so later runs can show typical time
+ * for the same origin + destination pair after restart.
  */
 data class RouteHistoryEntry(
     val durationSeconds: Long,
@@ -161,7 +162,8 @@ data class RouteHistoryEntry(
     val originPlaceName: String?,
     val destinationName: String,
     val destinationPlaceId: String,
-    val timestampMs: Long
+    val timestampMs: Long,
+    val originPlaceId: String? = null
 )
 
 /**

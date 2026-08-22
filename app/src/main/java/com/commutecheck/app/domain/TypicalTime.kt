@@ -8,15 +8,18 @@ import kotlin.math.roundToInt
 
 /**
  * Personal typical-time and leave-now math. No calendars or multi-user logic —
- * just recent successful checks for the same destination (and origin place when
- * we have one).
+ * just recent successful checks for the same destination and the same origin.
+ * Unmatched / "On the road" origins only compare against other unmatched samples.
+ * We never average across different origins.
  */
 object TypicalTime {
 
     const val MIN_SAMPLES = 2
+    const val MIN_COMPARISON_SAMPLES = 3
     const val NOTICEABLE_MINUTES = 3
     const val MAX_HISTORY = 40
     const val RECENT_WINDOW_MS = 21L * 24 * 60 * 60 * 1000
+    const val UNMATCHED_ORIGIN_NAME = "On the road"
 
     fun minutesFromSeconds(seconds: Long): Int {
         if (seconds <= 0L) return 0
@@ -82,19 +85,17 @@ object TypicalTime {
         destinationName: String,
         destinationPlaceId: String,
         originPlaceName: String?,
-        nowMs: Long
+        nowMs: Long,
+        originPlaceId: String? = null
     ): List<Int> {
-        val destMatches = history.filter { entry ->
+        val originScoped = history.filter { entry ->
             val age = nowMs - entry.timestampMs
-            age in 0..RECENT_WINDOW_MS && sameDestination(entry, destinationName, destinationPlaceId)
+            age in 0..RECENT_WINDOW_MS &&
+                sameDestination(entry, destinationName, destinationPlaceId) &&
+                sameOrigin(entry, originPlaceId, originPlaceName)
         }
-        val originScoped = if (!originPlaceName.isNullOrBlank()) {
-            destMatches.filter { it.originPlaceName.equals(originPlaceName, ignoreCase = true) }
-        } else {
-            destMatches
-        }
-        val samples = if (originScoped.size >= MIN_SAMPLES) originScoped else destMatches
-        return samples.map { minutesFromSeconds(it.durationInTrafficSeconds) }
+        if (originScoped.size < MIN_COMPARISON_SAMPLES) return emptyList()
+        return originScoped.map { minutesFromSeconds(it.durationInTrafficSeconds) }
     }
 
     /**
@@ -106,7 +107,8 @@ object TypicalTime {
         minGapMs: Long = RouteCooldown.TTL_MS
     ): Boolean {
         val last = history.lastOrNull { existing ->
-            sameDestination(existing, entry.destinationName, entry.destinationPlaceId)
+            sameDestination(existing, entry.destinationName, entry.destinationPlaceId) &&
+                sameOrigin(existing, entry.originPlaceId, entry.originPlaceName)
         } ?: return true
         val closeInTime = entry.timestampMs - last.timestampMs in 0 until minGapMs
         val sameTravel = last.durationInTrafficSeconds == entry.durationInTrafficSeconds
@@ -122,5 +124,26 @@ object TypicalTime {
             return true
         }
         return entry.destinationName.equals(destinationName, ignoreCase = true)
+    }
+
+    private fun sameOrigin(
+        entry: RouteHistoryEntry,
+        originPlaceId: String?,
+        originPlaceName: String?
+    ): Boolean {
+        val queryId = originPlaceId?.trim().orEmpty()
+        val entryId = entry.originPlaceId?.trim().orEmpty()
+        if (queryId.isNotEmpty() && entryId.isNotEmpty()) {
+            return queryId == entryId
+        }
+        return normalizeOriginName(entry.originPlaceName) == normalizeOriginName(originPlaceName)
+    }
+
+    private fun normalizeOriginName(name: String?): String {
+        val trimmed = name?.trim().orEmpty()
+        if (trimmed.isEmpty() || trimmed.equals(UNMATCHED_ORIGIN_NAME, ignoreCase = true)) {
+            return UNMATCHED_ORIGIN_NAME.lowercase()
+        }
+        return trimmed.lowercase()
     }
 }
