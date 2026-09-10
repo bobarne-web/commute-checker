@@ -33,6 +33,10 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
         Color.rgb(255, 64, 129),
         Color.rgb(255, 64, 129)
     )
+    private val fasterRouteColor = CarColor.createCustom(
+        Color.rgb(105, 240, 174),
+        Color.rgb(105, 240, 174)
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val prefs = PreferencesManager(carContext)
@@ -139,6 +143,17 @@ class CommuteScreen(carContext: CarContext) : Screen(carContext) {
             }
         }
         if (detail.isNotEmpty()) builder.addText(detail)
+
+        if (result.hasFasterAlternative) {
+            val altLabel = "Faster: ${result.fasterRouteDurationText} via " +
+                "${result.fasterRouteSummary ?: "alternate"} (−${result.fasterRouteSavedMinutes} min)"
+            val altSpan = ForegroundCarColorSpan.create(fasterRouteColor)
+            val altStyled = android.text.SpannableString(altLabel)
+            altStyled.setSpan(
+                altSpan, 0, altLabel.length, android.text.Spanned.SPAN_INCLUSIVE_INCLUSIVE
+            )
+            builder.addText(CarText.create(altStyled))
+        }
 
         return builder.build()
     }

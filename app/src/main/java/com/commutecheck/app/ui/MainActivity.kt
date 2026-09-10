@@ -286,7 +286,11 @@ class MainActivity : AppCompatActivity() {
         } else {
             "🟢 ${r.durationInTrafficText}$distance"
         }
-        return "• ${r.destinationName}: $status"
+        val faster = if (r.hasFasterAlternative) {
+            "\n   ↳ faster via ${r.fasterRouteSummary ?: "alternate route"}: " +
+                "${r.fasterRouteDurationText} (−${r.fasterRouteSavedMinutes} min)"
+        } else ""
+        return "• ${r.destinationName}: $status$faster"
     }
 
     // --- Permissions ---

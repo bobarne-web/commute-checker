@@ -36,6 +36,7 @@ class DirectionsApiClient(private val apiKey: String) {
                 append("&destination=$destLat,$destLng")
                 append("&departure_time=now")
                 append("&traffic_model=best_guess")
+                append("&alternatives=true")
                 append("&key=$apiKey")
             }
 
@@ -85,6 +86,23 @@ class DirectionsApiClient(private val apiKey: String) {
             val distance = leg.getAsJsonObject("distance")
             val distanceText = distance.get("text").asString
 
+            // Fastest alternative route, if any alternative beats the primary route.
+            var fastestAltSummary: String? = null
+            var fastestAltText: String? = null
+            var fastestAltSeconds: Long? = null
+            for (i in 1 until routes.size()) {
+                val altRoute = routes[i].asJsonObject
+                val altLeg = altRoute.getAsJsonArray("legs")?.get(0)?.asJsonObject ?: continue
+                val altTraffic = altLeg.getAsJsonObject("duration_in_traffic") ?: continue
+                val altSeconds = altTraffic.get("value").asLong
+                if (altSeconds >= durationInTrafficSeconds) continue
+                if (fastestAltSeconds == null || altSeconds < fastestAltSeconds!!) {
+                    fastestAltSeconds = altSeconds
+                    fastestAltText = altTraffic.get("text")?.asString
+                    fastestAltSummary = altRoute.get("summary")?.asString
+                }
+            }
+
             Result.success(
                 TravelTimeResult(
                     durationText = durationText,
@@ -92,7 +110,10 @@ class DirectionsApiClient(private val apiKey: String) {
                     durationInTrafficText = durationInTrafficText,
                     durationInTrafficSeconds = durationInTrafficSeconds,
                     distanceText = distanceText,
-                    summary = summary
+                    summary = summary,
+                    fasterRouteSummary = fastestAltSummary,
+                    fasterRouteDurationText = fastestAltText,
+                    fasterRouteDurationSeconds = fastestAltSeconds
                 )
             )
         } catch (e: Exception) {

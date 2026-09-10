@@ -8,6 +8,7 @@ An Android app for Galaxy S25 Ultra that automatically checks travel times when 
 - **Multiple destinations** — save as many places as you like (Home, Work, Truckee, Reno, …) and check travel time to any of them
 - **Per-destination watches** — each destination has its own active days, time window, on/off toggle, and seasonal active-months
 - **Color-coded delays** — each route shows **green** when on time and **red** with the extra delay minutes when traffic exceeds your threshold (default 3 min)
+- **Faster-route alerts** — when an alternate route beats the primary one, the result shows "faster via …" with the time saved
 - **Travel from wherever you are** — times are computed from your current location, so a road closure (e.g. Graeagle → Truckee) shows up as a big delay before you commit to the drive
 - **Seasonal watches** — e.g. set the Truckee watch to summer only (May–Oct) so it goes quiet in winter
 - **Car-screen dashboard** — a color-coded list of all relevant routes appears on Android Auto

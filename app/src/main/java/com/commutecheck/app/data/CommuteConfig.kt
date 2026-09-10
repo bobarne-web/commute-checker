@@ -103,7 +103,11 @@ data class TravelTimeResult(
     val durationInTrafficText: String,
     val durationInTrafficSeconds: Long,
     val distanceText: String,
-    val summary: String
+    val summary: String,
+    /** Fastest alternative route when one is quicker than the primary route. */
+    val fasterRouteSummary: String? = null,
+    val fasterRouteDurationText: String? = null,
+    val fasterRouteDurationSeconds: Long? = null
 )
 
 /**
@@ -118,7 +122,11 @@ data class RouteCheckResult(
     val summary: String,
     val delayMinutes: Int,
     val isDelayed: Boolean,
-    val error: String? = null
+    val error: String? = null,
+    val fasterRouteSummary: String? = null,
+    val fasterRouteDurationText: String? = null,
+    val fasterRouteSavedMinutes: Int = 0
 ) {
     val hasError: Boolean get() = error != null
+    val hasFasterAlternative: Boolean get() = fasterRouteSavedMinutes > 0
 }
