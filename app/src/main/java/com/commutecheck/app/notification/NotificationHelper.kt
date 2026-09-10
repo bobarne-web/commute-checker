@@ -152,6 +152,10 @@ class NotificationHelper(private val context: Context) {
             } else {
                 append("  ON TIME")
             }
+            if (result.hasFasterAlternative) {
+                append(" · faster via ${result.fasterRouteSummary ?: "alternate route"}")
+                append(" (${result.fasterRouteDurationText}, −${result.fasterRouteSavedMinutes} min)")
+            }
         }
     }
 

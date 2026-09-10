@@ -104,6 +104,9 @@ class CommuteEngine(private val context: Context) {
             onSuccess = { travel ->
                 val delaySeconds = travel.durationInTrafficSeconds - travel.durationSeconds
                 val delayMinutes = (delaySeconds / 60.0).roundToInt().coerceAtLeast(0)
+                val savedMinutes = travel.fasterRouteDurationSeconds
+                    ?.let { ((travel.durationInTrafficSeconds - it) / 60.0).roundToInt() }
+                    ?.takeIf { it > 0 }
                 RouteCheckResult(
                     watchId = watch.id,
                     destinationName = watch.name.ifBlank { destination.name },
@@ -111,7 +114,10 @@ class CommuteEngine(private val context: Context) {
                     distanceText = travel.distanceText,
                     summary = travel.summary,
                     delayMinutes = delayMinutes,
-                    isDelayed = delayMinutes >= thresholdMin
+                    isDelayed = delayMinutes >= thresholdMin,
+                    fasterRouteSummary = savedMinutes?.let { travel.fasterRouteSummary },
+                    fasterRouteDurationText = savedMinutes?.let { travel.fasterRouteDurationText },
+                    fasterRouteSavedMinutes = savedMinutes ?: 0
                 )
             },
             onFailure = { error ->
