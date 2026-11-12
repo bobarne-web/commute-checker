@@ -103,8 +103,10 @@ class NotificationHelper(private val context: Context) {
             "Commute times"
         }
 
-        val lines = results.map { formatResultLine(it) }
-        val body = lines.joinToString("\n")
+        val lines = results.flatMap { formatResultLines(it) }
+        val collapsed = results.firstOrNull()?.let { previewLine(it) }.orEmpty()
+        // One line per route, with typical/leave-by included, for the car shade.
+        val carBody = results.joinToString("\n") { previewLine(it) }
 
         val pendingIntent = PendingIntent.getActivity(
             context,
@@ -120,7 +122,7 @@ class NotificationHelper(private val context: Context) {
         val builder = NotificationCompat.Builder(context, CHANNEL_TRAVEL_TIME)
             .setSmallIcon(R.drawable.ic_commute)
             .setContentTitle(title)
-            .setContentText(if (anyDelayed) "Delays detected — tap for details" else body)
+            .setContentText(collapsed)
             .setStyle(inboxStyle)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
@@ -133,7 +135,7 @@ class NotificationHelper(private val context: Context) {
             .extend(
                 CarAppExtender.Builder()
                     .setContentTitle(title)
-                    .setContentText(body)
+                    .setContentText(carBody)
                     .setContentIntent(carPendingIntent)
                     .setImportance(NotificationManager.IMPORTANCE_HIGH)
                     .setColor(if (anyDelayed) abnormalTravelTimeColor else normalTravelTimeColor)
@@ -143,22 +145,23 @@ class NotificationHelper(private val context: Context) {
         carNotificationManager.notify(NOTIFICATION_TRAVEL_TIME_ID, builder)
     }
 
-    private fun formatResultLine(result: RouteCheckResult): String {
+    private fun formatResultLines(result: RouteCheckResult): List<String> {
         if (result.hasError) {
-            return "${result.destinationName}: unavailable"
+            return listOf("${result.destinationName}: unavailable")
         }
-        return buildString {
+        val primary = buildString {
             append(result.destinationName)
             append(": ")
             append(result.durationInTrafficText)
             append("  ")
             append(DelayMath.statusText(result.isDelayed, result.delayMinutes))
-            val glance = result.glanceLine?.takeIf { it.isNotBlank() }
-            if (glance != null) {
-                append("  ")
-                append(glance)
-            }
         }
+        val glance = result.glanceLine?.takeIf { it.isNotBlank() }
+        return if (glance != null) listOf(primary, glance) else listOf(primary)
+    }
+
+    private fun previewLine(result: RouteCheckResult): String {
+        return formatResultLines(result).joinToString(" · ")
     }
 
     private fun createCarAppPendingIntent(): PendingIntent {

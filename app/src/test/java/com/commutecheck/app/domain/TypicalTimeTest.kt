@@ -231,6 +231,84 @@ class TypicalTimeTest {
     }
 
     @Test
+    fun statusLine_showsLeaveByAndHintUntilThreeSameOriginSamples() {
+        val now = calendar(hour = 19, minute = 0).timeInMillis
+        val current = entry("Work", "work", "Home", 29 * 60, now, originPlaceId = "home")
+        val plan = TypicalTime.plan(emptyList(), current, tz)
+
+        assertTrue(plan.recordSample)
+        assertEquals(1, plan.sampleCount)
+        assertEquals(
+            "there by 7:29 PM · Typical time after 3 trips from Home (1 of 3)",
+            plan.glanceLine
+        )
+    }
+
+    @Test
+    fun statusLine_thirdSameOriginSampleShowsTypicalAndLeaveBy() {
+        val now = calendar(hour = 19, minute = 0).timeInMillis
+        val history = listOf(
+            entry("Work", "work", "Home", 20 * 60, now - 3_600_000, originPlaceId = "home"),
+            entry("Work", "work", "Home", 22 * 60, now - 2_600_000, originPlaceId = "home")
+        )
+        val current = entry("Work", "work", "Home", 21 * 60, now, originPlaceId = "home")
+        val plan = TypicalTime.plan(history, current, tz)
+
+        assertTrue(plan.recordSample)
+        assertEquals(3, plan.sampleCount)
+        assertEquals(
+            "typical 21 min · there by 7:21 PM",
+            plan.glanceLine
+        )
+        assertFalse(plan.glanceLine!!.contains("Typical time after"))
+    }
+
+    @Test
+    fun statusLine_ignoresOtherOriginsWhenCountingSamples() {
+        val now = calendar(hour = 8, minute = 0).timeInMillis
+        val history = listOf(
+            entry("Work", "work", "Truckee", 40 * 60, now - 5_000_000, originPlaceId = "truckee"),
+            entry("Work", "work", "Truckee", 42 * 60, now - 4_000_000, originPlaceId = "truckee"),
+            entry("Work", "work", "Truckee", 41 * 60, now - 3_000_000, originPlaceId = "truckee"),
+            entry("Work", "work", "Home", 29 * 60, now - 2_000_000, originPlaceId = "home")
+        )
+        val current = entry("Work", "work", "Home", 30 * 60, now, originPlaceId = "home")
+        val plan = TypicalTime.plan(history, current, tz)
+
+        assertEquals(2, plan.sampleCount)
+        assertEquals(
+            "there by 8:30 AM · Typical time after 3 trips from Home (2 of 3)",
+            plan.glanceLine
+        )
+        assertTrue(plan.recordSample)
+    }
+
+    @Test
+    fun plan_doesNotDoubleCountARefreshDuplicate() {
+        val now = 1_700_000_000_000L
+        val first = entry("Work", "work", "Home", 29 * 60, now, originPlaceId = "home")
+        val duplicate = first.copy(timestampMs = now + 15_000)
+        val plan = TypicalTime.plan(listOf(first), duplicate, tz)
+
+        assertFalse(plan.recordSample)
+        assertEquals(1, plan.sampleCount)
+        assertTrue(plan.glanceLine!!.contains("1 of 3"))
+        assertTrue(plan.glanceLine!!.startsWith("there by "))
+    }
+
+    @Test
+    fun collectingHint_namesOriginAndCount() {
+        assertEquals(
+            "Typical time after 3 trips from Home (1 of 3)",
+            TypicalTime.collectingHint(1, "Home")
+        )
+        assertEquals(
+            "Typical time after 3 trips from On the road (0 of 3)",
+            TypicalTime.collectingHint(0, null)
+        )
+    }
+
+    @Test
     fun shouldRecord_keepsDifferentOriginForSameDestination() {
         val now = 1_700_000_000_000L
         val fromWork = entry("Home", "home", "Work", 21 * 60, now, originPlaceId = "work")

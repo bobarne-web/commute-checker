@@ -13,8 +13,8 @@ android {
         applicationId = "com.commutecheck.app"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.3.1"
+        versionCode = 6
+        versionName = "1.3.2"
 
         // Read MAPS_API_KEY from local.properties, gradle property (-P), or fall back to empty
         val localProps = Properties()
@@ -55,6 +55,7 @@ android {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.constraintlayout:constraintlayout:2.2.1")

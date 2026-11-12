@@ -9,9 +9,7 @@ import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.Gravity
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,15 +17,15 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.commutecheck.app.R
 import com.commutecheck.app.data.PreferencesManager
 import com.commutecheck.app.data.RouteCheckResult
 import com.commutecheck.app.domain.CommuteEngine
 import com.commutecheck.app.domain.DelayMath
+import com.commutecheck.app.domain.RelativeTime
+import com.commutecheck.app.domain.TypicalTime
 import com.commutecheck.app.notification.NotificationHelper
-import com.google.android.material.appbar.MaterialToolbar
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -39,8 +37,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resultsHeader: TextView
     private lateinit var resultsContainer: LinearLayout
     private lateinit var backgroundLocationBanner: LinearLayout
-    private lateinit var placesButton: Button
-    private lateinit var watchesButton: Button
+    private lateinit var placesButton: TextView
+    private lateinit var watchesButton: TextView
+    private var checkInFlight = false
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -64,8 +63,8 @@ class MainActivity : AppCompatActivity() {
     ) { updateUI() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        prepareEdgeToEdge()
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
         prefsManager = PreferencesManager(this)
         supportActionBar?.hide()
 
@@ -91,27 +90,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun buildLayout(): View {
-        val pad = dp(16)
-        val screen = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.background))
-        }
-
-        screen.addView(MaterialToolbar(this).apply {
-            title = getString(R.string.app_name)
-            setPadding(0, statusBarHeight(), 0, 0)
-            setTitleTextColor(getColor(R.color.text_primary))
-            setBackgroundColor(getColor(R.color.surface))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(56) + statusBarHeight()
-            )
-        })
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-        }
+        val scaffold = screenScaffold(title = getString(R.string.app_name), showBack = false)
+        val root = scaffold.content
 
         root.addView(TextView(this).apply {
             text = getString(R.string.app_subtitle)
@@ -159,27 +139,26 @@ class MainActivity : AppCompatActivity() {
             text = getString(R.string.background_location_banner)
             setTextColor(getColor(R.color.on_primary_container))
         })
-        backgroundLocationBanner.addView(Button(this).apply {
-            text = getString(R.string.background_location_allow)
-            setOnClickListener { explainAndRequestBackgroundLocation() }
+        backgroundLocationBanner.addView(filledButton(getString(R.string.background_location_allow)) {
+            explainAndRequestBackgroundLocation()
         })
         root.addView(backgroundLocationBanner)
 
-        placesButton = primaryButton("Manage Places") {
+        placesButton = filledButton("Manage Places") {
             startActivity(Intent(this, PlacesActivity::class.java))
         }
         root.addView(placesButton)
 
-        watchesButton = primaryButton("Manage Commute Watches") {
+        watchesButton = filledButton("Manage Commute Watches") {
             startActivity(Intent(this, WatchesActivity::class.java))
         }
         root.addView(watchesButton)
 
-        root.addView(primaryButton(getString(R.string.settings_title)) {
+        root.addView(filledButton(getString(R.string.settings_title)) {
             startActivity(Intent(this, SettingsActivity::class.java))
         })
 
-        root.addView(primaryButton(getString(R.string.test_check)) {
+        root.addView(filledButton(getString(R.string.test_check)) {
             runTestCheck()
         })
 
@@ -196,27 +175,7 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(resultsContainer)
 
-        screen.addView(ScrollView(this).apply {
-            addView(root)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-        })
-
-        return screen
-    }
-
-    private fun primaryButton(label: String, onClick: () -> Unit): Button {
-        return Button(this).apply {
-            text = label
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(8) }
-            setOnClickListener { onClick() }
-        }
+        return scaffold.screen
     }
 
     private fun runTestCheck() {
@@ -230,14 +189,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        resultsHeader.text = getString(R.string.latest_results)
-        resultsContainer.removeAllViews()
-        resultsContainer.addView(messageView("Running commute check..."))
-        Toast.makeText(this, "Running commute check...", Toast.LENGTH_SHORT).show()
+        checkInFlight = true
+        resultsHeader.text = getString(R.string.latest_results) + "\n" + getString(R.string.checking_now)
 
         lifecycleScope.launch {
             when (val result = CommuteEngine(this@MainActivity).runChecks()) {
                 is CommuteEngine.EngineResult.Success -> {
+                    checkInFlight = false
                     val notificationHelper = NotificationHelper(this@MainActivity)
                     updateUI()
                     if (result.results.isEmpty()) {
@@ -254,11 +212,12 @@ class MainActivity : AppCompatActivity() {
                             result.currentPlaceName,
                             result.results
                         )
-                        Toast.makeText(this@MainActivity, "Commute check complete", Toast.LENGTH_SHORT).show()
                     }
                 }
                 is CommuteEngine.EngineResult.Failure -> {
+                    checkInFlight = false
                     NotificationHelper(this@MainActivity).showErrorNotification(result.message)
+                    resultsHeader.text = getString(R.string.latest_results)
                     resultsContainer.removeAllViews()
                     resultsContainer.addView(messageView("Could not run check:\n${result.message}"))
                     Toast.makeText(this@MainActivity, result.message, Toast.LENGTH_LONG).show()
@@ -297,6 +256,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderResults() {
+        if (checkInFlight) return
         resultsContainer.removeAllViews()
         val results = prefsManager.getLastResults()
         val place = prefsManager.getLastResultsPlace()
@@ -306,7 +266,7 @@ class MainActivity : AppCompatActivity() {
             if (place.isNotEmpty()) append("From $place")
             if (time > 0) {
                 if (isNotEmpty()) append(" · ")
-                append(DateUtils.getRelativeTimeSpanString(time))
+                append(relativeTime(time))
             }
         }
         resultsHeader.text = if (header.isNotEmpty()) {
@@ -403,7 +363,7 @@ class MainActivity : AppCompatActivity() {
                 setTextColor(getColor(R.color.text_secondary))
             })
         }
-        val glance = result.glanceLine?.takeIf { it.isNotBlank() }
+        val glance = glanceFor(result)
         if (glance != null) {
             card.addView(TextView(this).apply {
                 text = glance
@@ -413,6 +373,39 @@ class MainActivity : AppCompatActivity() {
             })
         }
         return card
+    }
+
+    private fun relativeTime(timestampMs: Long): String {
+        return RelativeTime.label(timestampMs, System.currentTimeMillis()) { then ->
+            DateUtils.getRelativeTimeSpanString(then).toString()
+        }
+    }
+
+    /**
+     * Prefer the line stored with the check. If an older result has none,
+     * rebuild leave-by and the sample hint from history so the card is not blank.
+     */
+    private fun glanceFor(result: RouteCheckResult): String? {
+        result.glanceLine?.takeIf { it.isNotBlank() }?.let { return it }
+        if (result.hasError || result.durationInTrafficSeconds <= 0L) return null
+        val origin = result.originPlaceName?.takeIf { it.isNotBlank() }
+            ?: prefsManager.getLastResultsPlace().ifBlank { TypicalTime.UNMATCHED_ORIGIN_NAME }
+        val whenMs = prefsManager.getLastResultsTime().takeIf { it > 0L } ?: System.currentTimeMillis()
+        val samples = TypicalTime.recentSampleMinutes(
+            history = prefsManager.getRouteHistory(),
+            destinationName = result.destinationName,
+            destinationPlaceId = result.destinationPlaceId,
+            originPlaceName = origin,
+            originPlaceId = result.originPlaceId,
+            nowMs = whenMs
+        )
+        return TypicalTime.statusLine(
+            currentMinutes = TypicalTime.minutesFromSeconds(result.durationInTrafficSeconds),
+            samplesMinutes = samples,
+            originPlaceName = origin,
+            nowMs = whenMs,
+            durationSeconds = result.durationInTrafficSeconds
+        )
     }
 
     private fun messageView(text: String): TextView = TextView(this).apply {
@@ -472,9 +465,4 @@ class MainActivity : AppCompatActivity() {
             PackageManager.PERMISSION_GRANTED
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
-    private fun statusBarHeight(): Int {
-        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) resources.getDimensionPixelSize(id) else 0
-    }
 }

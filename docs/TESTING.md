@@ -25,7 +25,7 @@ There are two layers to test:
 ### 3. Build & run
 1. Select **app** in the run-config dropdown and your emulator as the target.
 2. Click **▶ Run** (Shift+F10). The app installs and launches.
-3. Complete first-run setup (API key if needed, Home, a destination, a watch covering now).
+3. Complete first-run setup (Home, a destination, a watch covering now). The Maps key comes from `local.properties` at build time, not from a field in the app.
 4. Grant **while-using** location and **Notifications** when prompted. Background location is explained later, only if automatic car/USB checks need it.
 
 ### 4. Give the emulator a GPS location
@@ -35,7 +35,7 @@ The app checks "which place am I at?", so set a fake location:
 
 ### 5. Add Places
 1. In the app tap **Manage Places → Add Place**.
-2. Name it `Work`, keep radius 500m, tap to pick it on the map (or use current location), **Save**.
+2. Name it `Work`, keep radius 500m, set the location (map, address, or GPS), then tap **Save**. Name and radius can be changed later without picking the pin again.
 3. Repeat for `Home` and `Truckee` (use any real coordinates so Directions has somewhere to route).
 
 ### 6. Add Watches
@@ -45,7 +45,7 @@ The app checks "which place am I at?", so set a fake location:
 
 ### 7. Run a check
 1. On the main screen tap **Test Check**.
-2. The phone home should list each route as its own row (destination, duration, then an **ON TIME** or **DELAY +N min** badge — not a single emoji blob). The notification uses the same labels:
+2. The phone home should list each route as its own row (destination, duration, then an **ON TIME** or **DELAY +N min** badge — not a single emoji blob). Each row and the notification also show leave-by, plus typical time after 3 checks from the same place (until then, a “1 of 3” hint). The header says **Checking…** while the test runs, then **Just now**. Labels:
    - `To Home: 23 min  ON TIME` if extra traffic minutes are **below** the threshold
    - `To Truckee: 58 min  DELAY +14 min` if extra traffic minutes are **≥** the threshold (default 3)
 3. Change the emulator location to your **Home** coords and Test Check again — now "To Home" should be skipped (you're already there) and "To Work" appears if you added that watch.

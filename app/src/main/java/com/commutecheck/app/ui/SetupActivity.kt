@@ -7,22 +7,18 @@ import android.location.Geocoder
 import android.os.Bundle
 import android.text.InputType
 import android.view.View
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
 import com.commutecheck.app.R
 import com.commutecheck.app.data.Place
 import com.commutecheck.app.data.PreferencesManager
 import com.commutecheck.app.data.Watch
-import com.google.android.material.appbar.MaterialToolbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,18 +29,18 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
- * First-run flow: API key (if needed), Home, first destination, and a watch
- * whose window covers now so a test check can run immediately.
+ * First-run flow: Home, first destination, and a watch whose window covers now
+ * so a test check can run immediately. The Maps key comes from the build.
  */
 class SetupActivity : AppCompatActivity() {
 
-    private enum class Step { API_KEY, HOME, DESTINATION, WATCH }
+    private enum class Step { HOME, DESTINATION, WATCH }
 
     private lateinit var prefs: PreferencesManager
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private lateinit var content: LinearLayout
-    private var step: Step = Step.API_KEY
+    private var step: Step = Step.HOME
 
     private var homePlace: Place? = null
     private var destinationPlace: Place? = null
@@ -67,8 +63,8 @@ class SetupActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        prepareEdgeToEdge()
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
         prefs = PreferencesManager(this)
         supportActionBar?.hide()
 
@@ -89,50 +85,23 @@ class SetupActivity : AppCompatActivity() {
     }
 
     private fun firstIncompleteStep(): Step {
-        if (!prefs.hasUsableApiKey()) return Step.API_KEY
         val places = prefs.getPlaces()
         homePlace = places.firstOrNull { it.name.equals("Home", ignoreCase = true) } ?: places.firstOrNull()
         if (homePlace == null) return Step.HOME
         destinationPlace = places.firstOrNull { it.id != homePlace?.id }
         if (destinationPlace == null) return Step.DESTINATION
-        if (prefs.getWatches().isEmpty()) return Step.WATCH
-        return Step.API_KEY
+        return Step.WATCH
     }
 
     private fun buildShell(): View {
-        val screen = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.background))
-        }
-        screen.addView(MaterialToolbar(this).apply {
-            title = getString(R.string.setup_title)
-            setPadding(0, statusBarHeight(), 0, 0)
-            setTitleTextColor(getColor(R.color.text_primary))
-            setBackgroundColor(getColor(R.color.surface))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(56) + statusBarHeight()
-            )
-        })
-        content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-        }
-        screen.addView(ScrollView(this).apply {
-            addView(content)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-        })
-        return screen
+        val scaffold = screenScaffold(title = getString(R.string.setup_title), showBack = false)
+        content = scaffold.content
+        return scaffold.screen
     }
 
     private fun renderStep() {
         content.removeAllViews()
         when (step) {
-            Step.API_KEY -> renderApiKey()
             Step.HOME -> renderPlaceStep(
                 title = getString(R.string.setup_home_title),
                 body = getString(R.string.setup_home_body),
@@ -147,45 +116,6 @@ class SetupActivity : AppCompatActivity() {
             )
             Step.WATCH -> renderWatch()
         }
-    }
-
-    private fun renderApiKey() {
-        content.addView(heading(getString(R.string.setup_api_title)))
-        content.addView(body(getString(R.string.api_key_description)))
-        val input = EditText(this).apply {
-            hint = getString(R.string.api_key_hint)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setText(prefs.getMapsApiKey())
-        }
-        content.addView(input)
-        content.addView(primaryButton(getString(R.string.setup_continue)) {
-            val key = input.text.toString().trim()
-            if (key.isEmpty() && !prefs.hasUsableApiKey()) {
-                Toast.makeText(this, getString(R.string.setup_api_required), Toast.LENGTH_LONG).show()
-                return@primaryButton
-            }
-            if (key.isNotEmpty()) prefs.saveMapsApiKey(key)
-            advanceFromApiKey()
-        })
-    }
-
-    private fun advanceFromApiKey() {
-        val places = prefs.getPlaces()
-        homePlace = homePlace
-            ?: places.firstOrNull { it.name.equals("Home", ignoreCase = true) }
-            ?: places.firstOrNull()
-        destinationPlace = destinationPlace
-            ?: places.firstOrNull { it.id != homePlace?.id }
-        step = when {
-            homePlace == null -> Step.HOME
-            destinationPlace == null -> Step.DESTINATION
-            prefs.getWatches().isEmpty() -> Step.WATCH
-            else -> {
-                finishSetup()
-                return
-            }
-        }
-        renderStep()
     }
 
     private fun renderPlaceStep(
@@ -204,11 +134,11 @@ class SetupActivity : AppCompatActivity() {
         }
         content.addView(nameInput)
         content.addView(body(getString(R.string.setup_place_location)))
-        content.addView(primaryButton(getString(R.string.setup_pick_map)) {
+        content.addView(filledButton(getString(R.string.setup_pick_map)) {
             val name = nameInput.text.toString().trim().ifEmpty { defaultName }
             if (name.isEmpty()) {
                 Toast.makeText(this, getString(R.string.setup_name_required), Toast.LENGTH_SHORT).show()
-                return@primaryButton
+                return@filledButton
             }
             pendingPlaceName = name
             pendingPlaceIsHome = isHome
@@ -216,19 +146,19 @@ class SetupActivity : AppCompatActivity() {
                 putExtra(LocationPickerActivity.EXTRA_TITLE, "Set $name")
             })
         })
-        content.addView(primaryButton(getString(R.string.setup_street_address)) {
+        content.addView(filledButton(getString(R.string.setup_street_address)) {
             val name = nameInput.text.toString().trim().ifEmpty { defaultName }
             if (name.isEmpty()) {
                 Toast.makeText(this, getString(R.string.setup_name_required), Toast.LENGTH_SHORT).show()
-                return@primaryButton
+                return@filledButton
             }
             showAddressDialog(name, isHome)
         })
-        content.addView(primaryButton(getString(R.string.setup_gps_coords)) {
+        content.addView(filledButton(getString(R.string.setup_gps_coords)) {
             val name = nameInput.text.toString().trim().ifEmpty { defaultName }
             if (name.isEmpty()) {
                 Toast.makeText(this, getString(R.string.setup_name_required), Toast.LENGTH_SHORT).show()
-                return@primaryButton
+                return@filledButton
             }
             showCoordsDialog(name, isHome)
         })
@@ -346,7 +276,7 @@ class SetupActivity : AppCompatActivity() {
         )
         content.addView(heading(getString(R.string.setup_watch_title)))
         content.addView(body(getString(R.string.setup_watch_body, dest.name, formatWindow(preview))))
-        content.addView(primaryButton(getString(R.string.setup_finish)) {
+        content.addView(filledButton(getString(R.string.setup_finish)) {
             prefs.upsertWatch(preview)
             finishSetup()
         })
@@ -408,19 +338,5 @@ class SetupActivity : AppCompatActivity() {
         setPadding(0, dp(8), 0, dp(4))
     }
 
-    private fun primaryButton(label: String, onClick: () -> Unit): Button = Button(this).apply {
-        text = label
-        layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(8) }
-        setOnClickListener { onClick() }
-    }
-
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
-    private fun statusBarHeight(): Int {
-        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) resources.getDimensionPixelSize(id) else 0
-    }
 }

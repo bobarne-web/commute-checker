@@ -17,11 +17,8 @@ data class Place(
 ) {
     fun toLatLng(): LatLng = LatLng(latitude, longitude)
 
-    fun distanceTo(lat: Double, lng: Double): Float {
-        val results = FloatArray(1)
-        android.location.Location.distanceBetween(latitude, longitude, lat, lng, results)
-        return results[0]
-    }
+    fun distanceTo(lat: Double, lng: Double): Float =
+        com.commutecheck.app.domain.RouteCooldown.distanceMeters(latitude, longitude, lat, lng).toFloat()
 
     fun contains(lat: Double, lng: Double): Boolean = distanceTo(lat, lng) <= radiusMeters
 
@@ -146,7 +143,9 @@ data class RouteCheckResult(
     val destinationPlaceId: String = "",
     val durationSeconds: Long = 0L,
     val durationInTrafficSeconds: Long = 0L,
-    val glanceLine: String? = null
+    val glanceLine: String? = null,
+    val originPlaceName: String? = null,
+    val originPlaceId: String? = null
 ) {
     val hasError: Boolean get() = error != null
 }

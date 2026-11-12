@@ -12,6 +12,9 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import com.commutecheck.app.R
 import com.commutecheck.app.databinding.ActivityLocationPickerBinding
 import com.google.android.gms.location.LocationServices
@@ -38,9 +41,20 @@ class LocationPickerActivity : AppCompatActivity(), OnMapReadyCallback {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        prepareEdgeToEdge()
         super.onCreate(savedInstanceState)
         binding = ActivityLocationPickerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        val baseBottom = binding.bottomPanel.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(binding.bottomPanel) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            view.updatePadding(bottom = baseBottom + maxOf(bars.bottom, ime.bottom))
+            insets
+        }
+        ViewCompat.requestApplyInsets(binding.bottomPanel)
 
         supportActionBar?.title = intent.getStringExtra(EXTRA_TITLE) ?: getString(R.string.pick_location)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
