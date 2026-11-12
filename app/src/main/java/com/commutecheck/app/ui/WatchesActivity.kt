@@ -3,19 +3,14 @@ package com.commutecheck.app.ui
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
-import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.content.res.AppCompatResources
-import androidx.core.view.WindowCompat
 import com.commutecheck.app.R
 import com.commutecheck.app.data.PreferencesManager
 import com.commutecheck.app.data.Watch
-import com.google.android.material.appbar.MaterialToolbar
 import java.util.Calendar
 
 /**
@@ -28,59 +23,16 @@ class WatchesActivity : AppCompatActivity() {
     private lateinit var listContainer: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        prepareEdgeToEdge()
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
         prefs = PreferencesManager(this)
         supportActionBar?.hide()
 
-        val pad = dp(16)
-        val screen = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.background))
-        }
-
-        screen.addView(MaterialToolbar(this).apply {
-            title = "Commute Watches"
-            navigationIcon = AppCompatResources.getDrawable(
-                this@WatchesActivity,
-                androidx.appcompat.R.drawable.abc_ic_ab_back_material
-            )
-            setPadding(0, statusBarHeight(), 0, 0)
-            setNavigationOnClickListener { finish() }
-            setTitleTextColor(getColor(R.color.text_primary))
-            setBackgroundColor(getColor(R.color.surface))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(56) + statusBarHeight()
-            )
-        })
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-        }
-
-        root.addView(Button(this).apply {
-            text = "Add Watch"
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setOnClickListener { addWatch() }
-        })
-
+        val scaffold = screenScaffold(title = "Commute Watches", showBack = true)
+        scaffold.content.addView(filledButton("Add Watch") { addWatch() })
         listContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(listContainer)
-
-        screen.addView(ScrollView(this).apply {
-            addView(root)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            )
-        })
-
-        setContentView(screen)
+        scaffold.content.addView(listContainer)
+        setContentView(scaffold.screen)
     }
 
     override fun onResume() {
@@ -135,17 +87,13 @@ class WatchesActivity : AppCompatActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.END
             }
-            buttons.addView(Button(this).apply {
-                text = "Edit"
-                setOnClickListener {
-                    startActivity(Intent(this@WatchesActivity, WatchEditorActivity::class.java).apply {
-                        putExtra(WatchEditorActivity.EXTRA_WATCH_ID, watch.id)
-                    })
-                }
+            buttons.addView(inlineTonalButton("Edit") {
+                startActivity(Intent(this@WatchesActivity, WatchEditorActivity::class.java).apply {
+                    putExtra(WatchEditorActivity.EXTRA_WATCH_ID, watch.id)
+                })
             })
-            buttons.addView(Button(this).apply {
-                text = "Delete"
-                setOnClickListener { confirmDelete(watch) }
+            buttons.addView(inlineTonalButton("Delete") {
+                confirmDelete(watch)
             })
             card.addView(buttons)
             listContainer.addView(card)
@@ -211,9 +159,4 @@ class WatchesActivity : AppCompatActivity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
-    private fun statusBarHeight(): Int {
-        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) resources.getDimensionPixelSize(id) else 0
-    }
 }

@@ -18,6 +18,7 @@
     <string name="confirm">Confirm</string>
     <string name="coordinates_format" formatted="false">%.4f, %.4f</string>
     <string name="latest_results">Latest results</string>
+    <string name="checking_now">Checking…</string>
     <string name="delay_threshold_title">Traffic delay threshold (minutes)</string>
     <string name="delay_threshold_description">A route is DELAY when extra traffic minutes are this value or more (delay ≥ threshold). Default is %d. ON TIME / DELAY labels are always shown; color is extra.</string>
     <string name="usb_trigger_title">USB power (last resort)</string>

@@ -75,7 +75,16 @@
             android:name=".ui.WatchEditorActivity"
             android:exported="false"
             android:label="Watch"
+            android:windowSoftInputMode="adjustResize"
             android:parentActivityName=".ui.WatchesActivity" />
+
+        <!-- Place editor -->
+        <activity
+            android:name=".ui.PlaceEditorActivity"
+            android:exported="false"
+            android:label="Place"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.PlacesActivity" />
 
         <!-- Location Picker Activity -->
         <activity

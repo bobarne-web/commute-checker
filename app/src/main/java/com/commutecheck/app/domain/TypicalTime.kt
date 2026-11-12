@@ -80,6 +80,110 @@ object TypicalTime {
         }
     }
 
+    /**
+     * Card and notification copy. Leave-by is always included when the trip has
+     * a duration. Typical comparison needs [MIN_COMPARISON_SAMPLES] from the
+     * same origin; until then a short progress hint is shown instead of nothing.
+     */
+    fun statusLine(
+        currentMinutes: Int,
+        samplesMinutes: List<Int>,
+        originPlaceName: String?,
+        nowMs: Long,
+        durationSeconds: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String? {
+        val enough = samplesMinutes.size >= MIN_COMPARISON_SAMPLES
+        val comparison = if (enough) {
+            comparisonLine(currentMinutes, typicalMinutes(samplesMinutes))
+        } else {
+            null
+        }
+        val leaveBy = leaveByLine(nowMs, durationSeconds, timeZone)
+        val hint = if (enough) null else collectingHint(samplesMinutes.size, originPlaceName)
+        val line = listOfNotNull(comparison, leaveBy, hint).joinToString(" · ")
+        return line.ifBlank { null }
+    }
+
+    fun collectingHint(sampleCount: Int, originPlaceName: String?): String {
+        val origin = displayOrigin(originPlaceName)
+        val shown = sampleCount.coerceAtLeast(0)
+        return "Typical time after $MIN_COMPARISON_SAMPLES trips from $origin ($shown of $MIN_COMPARISON_SAMPLES)"
+    }
+
+    fun displayOrigin(name: String?): String {
+        val trimmed = name?.trim().orEmpty()
+        if (trimmed.isEmpty() || trimmed.equals(UNMATCHED_ORIGIN_NAME, ignoreCase = true)) {
+            return UNMATCHED_ORIGIN_NAME
+        }
+        return trimmed
+    }
+
+    /**
+     * Samples that count toward typical time for the check being shown.
+     * Includes this check when it will be stored, so the first trip reads
+     * "1 of 3" and the third trip can show a typical time.
+     */
+    fun samplesIncludingCurrent(
+        history: List<RouteHistoryEntry>,
+        current: RouteHistoryEntry
+    ): List<Int> {
+        val prior = recentSampleMinutes(
+            history = history,
+            destinationName = current.destinationName,
+            destinationPlaceId = current.destinationPlaceId,
+            originPlaceName = current.originPlaceName,
+            originPlaceId = current.originPlaceId,
+            nowMs = current.timestampMs
+        )
+        if (current.durationInTrafficSeconds <= 0L) return prior
+        if (!shouldRecord(history, current)) return prior
+        return prior + minutesFromSeconds(current.durationInTrafficSeconds)
+    }
+
+    data class CheckPlan(
+        val glanceLine: String?,
+        val sampleCount: Int,
+        val recordSample: Boolean
+    )
+
+    fun plan(
+        history: List<RouteHistoryEntry>,
+        current: RouteHistoryEntry,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): CheckPlan {
+        val samples = samplesIncludingCurrent(history, current)
+        val record = current.durationInTrafficSeconds > 0L && shouldRecord(history, current)
+        return CheckPlan(
+            glanceLine = statusLine(
+                currentMinutes = minutesFromSeconds(current.durationInTrafficSeconds),
+                samplesMinutes = samples,
+                originPlaceName = current.originPlaceName,
+                nowMs = current.timestampMs,
+                durationSeconds = current.durationInTrafficSeconds,
+                timeZone = timeZone
+            ),
+            sampleCount = samples.size,
+            recordSample = record
+        )
+    }
+
+    fun recentSampleMinutes(
+        history: List<RouteHistoryEntry>,
+        destinationName: String,
+        destinationPlaceId: String,
+        originPlaceName: String?,
+        nowMs: Long,
+        originPlaceId: String? = null
+    ): List<Int> {
+        return history.filter { entry ->
+            val age = nowMs - entry.timestampMs
+            age in 0..RECENT_WINDOW_MS &&
+                sameDestination(entry, destinationName, destinationPlaceId) &&
+                sameOrigin(entry, originPlaceId, originPlaceName)
+        }.map { minutesFromSeconds(it.durationInTrafficSeconds) }
+    }
+
     fun matchingDurations(
         history: List<RouteHistoryEntry>,
         destinationName: String,
@@ -88,14 +192,16 @@ object TypicalTime {
         nowMs: Long,
         originPlaceId: String? = null
     ): List<Int> {
-        val originScoped = history.filter { entry ->
-            val age = nowMs - entry.timestampMs
-            age in 0..RECENT_WINDOW_MS &&
-                sameDestination(entry, destinationName, destinationPlaceId) &&
-                sameOrigin(entry, originPlaceId, originPlaceName)
-        }
-        if (originScoped.size < MIN_COMPARISON_SAMPLES) return emptyList()
-        return originScoped.map { minutesFromSeconds(it.durationInTrafficSeconds) }
+        val samples = recentSampleMinutes(
+            history = history,
+            destinationName = destinationName,
+            destinationPlaceId = destinationPlaceId,
+            originPlaceName = originPlaceName,
+            nowMs = nowMs,
+            originPlaceId = originPlaceId
+        )
+        if (samples.size < MIN_COMPARISON_SAMPLES) return emptyList()
+        return samples
     }
 
     /**

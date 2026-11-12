@@ -44,7 +44,8 @@ class CommuteEngine(private val context: Context) {
     }
 
     suspend fun runChecks(): EngineResult {
-        val apiKey = prefs.getMapsApiKey().ifEmpty { BuildConfig.MAPS_API_KEY }
+        // Stored settings keys are ignored. The Play build ships the key at compile time.
+        val apiKey = BuildConfig.MAPS_API_KEY
         if (apiKey.isEmpty()) {
             return EngineResult.Failure("Google Maps API key not configured")
         }
@@ -98,18 +99,11 @@ class CommuteEngine(private val context: Context) {
             }.awaitAll()
         }.filterNotNull()
 
+        // Test checks and the notification service share this path, so every
+        // successful watch is recorded here (refresh duplicates are skipped).
         results.forEach { result ->
             if (result.hasError || result.durationInTrafficSeconds <= 0L) return@forEach
-            val entry = RouteHistoryEntry(
-                durationSeconds = result.durationSeconds,
-                durationInTrafficSeconds = result.durationInTrafficSeconds,
-                delayMinutes = result.delayMinutes,
-                originPlaceName = currentPlace?.name ?: TypicalTime.UNMATCHED_ORIGIN_NAME,
-                destinationName = result.destinationName,
-                destinationPlaceId = result.destinationPlaceId,
-                timestampMs = nowMs,
-                originPlaceId = currentPlace?.id
-            )
+            val entry = historyEntry(result, currentPlace, nowMs)
             if (TypicalTime.shouldRecord(prefs.getRouteHistory(), entry)) {
                 prefs.appendRouteHistory(entry)
             }
@@ -145,38 +139,38 @@ class CommuteEngine(private val context: Context) {
 
         return travelResult.fold(
             onSuccess = { travel ->
+                val trafficSeconds = travel.durationInTrafficSeconds.takeIf { it > 0L }
+                    ?: travel.durationSeconds
                 val delayMinutes = DelayMath.delayMinutes(
-                    travel.durationInTrafficSeconds,
+                    trafficSeconds,
                     travel.durationSeconds
                 )
-                val currentMinutes = TypicalTime.minutesFromSeconds(travel.durationInTrafficSeconds)
-                val typical = TypicalTime.typicalMinutes(
-                    TypicalTime.matchingDurations(
-                        history = history,
-                        destinationName = destinationName,
-                        destinationPlaceId = destination.id,
-                        originPlaceName = currentPlace?.name ?: TypicalTime.UNMATCHED_ORIGIN_NAME,
-                        nowMs = nowMs,
-                        originPlaceId = currentPlace?.id
-                    )
+                val originName = currentPlace?.name ?: TypicalTime.UNMATCHED_ORIGIN_NAME
+                val entry = RouteHistoryEntry(
+                    durationSeconds = travel.durationSeconds,
+                    durationInTrafficSeconds = trafficSeconds,
+                    delayMinutes = delayMinutes,
+                    originPlaceName = originName,
+                    destinationName = destinationName,
+                    destinationPlaceId = destination.id,
+                    timestampMs = nowMs,
+                    originPlaceId = currentPlace?.id
                 )
+                val plan = TypicalTime.plan(history, entry)
                 RouteCheckResult(
                     watchId = watch.id,
                     destinationName = destinationName,
-                    durationInTrafficText = travel.durationInTrafficText,
+                    durationInTrafficText = travel.durationInTrafficText.ifBlank { travel.durationText },
                     distanceText = travel.distanceText,
                     summary = travel.summary,
                     delayMinutes = delayMinutes,
                     isDelayed = DelayMath.isDelayed(delayMinutes, thresholdMin),
                     destinationPlaceId = destination.id,
                     durationSeconds = travel.durationSeconds,
-                    durationInTrafficSeconds = travel.durationInTrafficSeconds,
-                    glanceLine = TypicalTime.glanceLine(
-                        currentMinutes = currentMinutes,
-                        typicalMinutes = typical,
-                        nowMs = nowMs,
-                        durationSeconds = travel.durationInTrafficSeconds
-                    )
+                    durationInTrafficSeconds = trafficSeconds,
+                    glanceLine = plan.glanceLine,
+                    originPlaceName = originName,
+                    originPlaceId = currentPlace?.id
                 )
             },
             onFailure = { error ->
@@ -228,10 +222,36 @@ class CommuteEngine(private val context: Context) {
     }
 
     private fun detectCurrentPlace(lat: Double, lng: Double, places: List<Place>): Place? {
-        return places
-            .filter { it.contains(lat, lng) }
-            .minByOrNull { it.distanceTo(lat, lng) }
+        val match = OriginPlaces.nearestMatch(
+            latitude = lat,
+            longitude = lng,
+            places = places.map { place ->
+                OriginCandidate(
+                    id = place.id,
+                    name = place.name,
+                    latitude = place.latitude,
+                    longitude = place.longitude,
+                    radiusMeters = place.radiusMeters
+                )
+            }
+        ) ?: return null
+        return places.firstOrNull { it.id == match.id }
     }
+
+    private fun historyEntry(
+        result: RouteCheckResult,
+        currentPlace: Place?,
+        nowMs: Long
+    ): RouteHistoryEntry = RouteHistoryEntry(
+        durationSeconds = result.durationSeconds,
+        durationInTrafficSeconds = result.durationInTrafficSeconds,
+        delayMinutes = result.delayMinutes,
+        originPlaceName = result.originPlaceName ?: currentPlace?.name ?: TypicalTime.UNMATCHED_ORIGIN_NAME,
+        destinationName = result.destinationName,
+        destinationPlaceId = result.destinationPlaceId,
+        timestampMs = nowMs,
+        originPlaceId = result.originPlaceId ?: currentPlace?.id
+    )
 
     private suspend fun resolveLocation(): Location? {
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)

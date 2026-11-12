@@ -45,7 +45,7 @@ An Android app for Galaxy S25 Ultra that automatically checks travel times when 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Enable the **Directions API** and **Maps SDK for Android**
 3. Create an API key and restrict it to your app's package name + SHA-1
-4. Enter the key in first-run setup or Settings. You may also add it to `local.properties` (never commit this file):
+4. Add it to `local.properties` (never commit this file). The app uses this build-time key only and does not ask for one in Settings:
    ```
    MAPS_API_KEY=your_api_key_here
    ```
@@ -64,7 +64,7 @@ The APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-On first launch the app walks through API key (if needed), Home, a first destination, and a watch whose time window covers now.
+On first launch the app walks through Home, a first destination, and a watch whose time window covers now.
 
 ## Android Auto Testing
 
@@ -93,7 +93,7 @@ After first-run setup you can still:
 
 1. **Manage Places** — add more destinations. Editing a place on the map centers on the saved pin.
 2. **Manage Commute Watches** — change days, the 12-hour time window, and season.
-3. **Settings** — delay threshold (inclusive), masked API key, optional USB trigger.
+3. **Settings** — delay threshold (inclusive) and optional USB trigger. The Maps key is the build-time key only.
 
 Background location is requested only when automatic car/USB checks need it — not during first-run map picking.
 
@@ -108,7 +108,7 @@ Background location is requested only when automatic car/USB checks need it — 
 - **`CommuteScreen` / `CommuteCarAppService`** — car dashboard (cached rows first, then refresh)
 - **`NotificationHelper`** — notification channels and ON TIME / DELAY summary
 - **`PreferencesManager`** — SharedPreferences for Places, Watches, and settings
-- **`SetupActivity`** — first-run API key, Home, destination, watch covering now
+- **`SetupActivity`** — first-run Home, destination, watch covering now
 - **`PlacesActivity` / `WatchesActivity` / `WatchEditorActivity`** — phone UI for places and watches
 - **`LocationPickerActivity`** — Google Maps-based location selector
 

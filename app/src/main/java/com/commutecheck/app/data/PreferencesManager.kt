@@ -14,6 +14,13 @@ class PreferencesManager(context: Context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
 
+    init {
+        // Older builds let the user paste a Cloud key. The consumer app ignores it.
+        if (prefs.contains(KEY_MAPS_API_KEY)) {
+            prefs.edit().remove(KEY_MAPS_API_KEY).apply()
+        }
+    }
+
     companion object {
         private const val PREFS_NAME = "commute_checker_prefs"
         private const val KEY_PLACES = "places"
@@ -105,11 +112,15 @@ class PreferencesManager(context: Context) {
     }
 
     // --- Maps API Key ---
+    // The field used to be user-editable. Stored values are discarded; callers
+    // must use the build-time key only.
 
-    fun getMapsApiKey(): String = prefs.getString(KEY_MAPS_API_KEY, "") ?: ""
+    fun getMapsApiKey(): String = ""
 
+    @Suppress("UNUSED_PARAMETER")
     fun saveMapsApiKey(key: String) {
-        prefs.edit().putString(KEY_MAPS_API_KEY, key).apply()
+        // Ignored on purpose so a previously pasted Cloud key cannot be reused.
+        prefs.edit().remove(KEY_MAPS_API_KEY).apply()
     }
 
     // --- Delay threshold (minutes) ---
@@ -210,8 +221,8 @@ class PreferencesManager(context: Context) {
     /** Configured once there is at least one place and one watch. */
     fun isConfigured(): Boolean = getPlaces().isNotEmpty() && getWatches().isNotEmpty()
 
-    fun hasUsableApiKey(): Boolean =
-        getMapsApiKey().isNotEmpty() || BuildConfig.MAPS_API_KEY.isNotEmpty()
+    fun hasUsableApiKey(): Boolean = BuildConfig.MAPS_API_KEY.isNotEmpty()
 
-    fun needsSetup(): Boolean = !hasUsableApiKey() || !isConfigured()
+    /** Places and watches are the setup gate. A missing build-time key fails the check, not setup. */
+    fun needsSetup(): Boolean = !isConfigured()
 }
